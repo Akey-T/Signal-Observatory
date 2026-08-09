@@ -1,0 +1,15 @@
+schema_version: 1
+categories:
+  - { name: Protocols, slug: protocols }
+topics:
+  - canonical_name: Model Context Protocol
+    slug: model-context-protocol
+    description: A protocol for AI context and tool integration.
+    category: protocols
+    aliases: [{ value: MCP, type: abbreviation, case_sensitive: true }]
+  - canonical_name: Microsoft Certified Professional
+    slug: microsoft-certified-professional
+    description: A historical Microsoft professional certification program.
+    category: protocols
+    aliases: [{ value: MCP, type: abbreviation, case_sensitive: true }]
+allowed_alias_collisions: []

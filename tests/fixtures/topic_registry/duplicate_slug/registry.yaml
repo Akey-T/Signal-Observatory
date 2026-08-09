@@ -1,0 +1,17 @@
+schema_version: 1
+categories:
+  - { name: AI, slug: ai }
+topics:
+  - {
+      canonical_name: First Topic,
+      slug: repeated,
+      description: A first valid topic description.,
+      category: ai,
+    }
+  - {
+      canonical_name: Second Topic,
+      slug: repeated,
+      description: A second valid topic description.,
+      category: ai,
+    }
+allowed_alias_collisions: []

@@ -1,0 +1,8 @@
+schema_version: 1
+categories: [{ name: Current Topics, slug: current-topics }]
+topics:
+  - canonical_name: Current Topic
+    slug: current-topic
+    description: The only topic still represented in this registry version.
+    category: current-topics
+allowed_alias_collisions: []

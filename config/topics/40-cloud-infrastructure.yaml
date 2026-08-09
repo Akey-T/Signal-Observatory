@@ -1,0 +1,262 @@
+schema_version: 1
+categories: []
+topics:
+  - canonical_name: Amazon Web Services
+    slug: amazon-web-services
+    description: Amazon's broad public cloud platform for compute, storage, data, and applications.
+    category: cloud-platforms
+    monitoring_priority: 94
+    aliases: [{ value: AWS, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Amazon Web Services] },
+        hacker_news: { terms: [Amazon AWS] },
+      }
+  - canonical_name: Microsoft Azure
+    slug: microsoft-azure
+    description: Microsoft's public cloud platform spanning infrastructure and managed services.
+    category: cloud-platforms
+    monitoring_priority: 92
+    aliases: [{ value: Azure, type: product_name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Microsoft Azure] },
+        hacker_news: { terms: [Microsoft Azure] },
+      }
+  - canonical_name: Google Cloud Platform
+    slug: google-cloud-platform
+    description: Google's public cloud platform for infrastructure, data, and AI services.
+    category: cloud-platforms
+    monitoring_priority: 92
+    aliases:
+      [
+        { value: GCP, type: abbreviation, case_sensitive: true },
+        { value: Google Cloud, type: product_name, case_sensitive: true },
+      ]
+    sources:
+      {
+        wikipedia: { page_titles: [Google Cloud Platform] },
+        hacker_news: { terms: [Google Cloud] },
+      }
+  - canonical_name: Cloudflare
+    slug: cloudflare
+    description: A global connectivity cloud offering edge, network, and security services.
+    category: cloud-platforms
+    monitoring_priority: 90
+    aliases:
+      [{ value: Cloudflare Workers, type: product_name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Cloudflare] },
+        github: { search_queries: [topic:cloudflare] },
+      }
+  - canonical_name: Terraform
+    slug: terraform
+    description: A declarative infrastructure-as-code tool for provisioning cloud resources.
+    category: infrastructure-tools
+    monitoring_priority: 92
+    aliases:
+      [{ value: HashiCorp Terraform, type: product_name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Terraform (software)] },
+        github: { search_queries: [hashicorp/terraform] },
+      }
+  - canonical_name: OpenTofu
+    slug: opentofu
+    description: An open-source infrastructure-as-code tool derived from the Terraform ecosystem.
+    category: infrastructure-tools
+    monitoring_priority: 86
+    aliases: [{ value: Open Tofu, type: spelling, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [OpenTofu] },
+        github: { search_queries: [opentofu/opentofu] },
+      }
+  - canonical_name: Ansible
+    slug: ansible
+    description: An agentless automation tool for configuration management and deployment.
+    category: infrastructure-tools
+    monitoring_priority: 80
+    aliases:
+      [{ value: Ansible Automation, type: product_name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Ansible (software)] },
+        github: { search_queries: [ansible/ansible] },
+      }
+  - canonical_name: Helm
+    slug: helm
+    description: A package manager for defining and installing applications on Kubernetes.
+    category: infrastructure-tools
+    monitoring_priority: 84
+    aliases: [{ value: Helm charts, type: related_term, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Helm (package manager)] },
+        github: { search_queries: [helm/helm] },
+      }
+  - canonical_name: Prometheus
+    slug: prometheus
+    description: A metrics collection and alerting system built for cloud-native operations.
+    category: infrastructure-tools
+    monitoring_priority: 90
+    aliases:
+      [{ value: Prometheus monitoring, type: name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Prometheus (software)] },
+        github: { search_queries: [prometheus/prometheus] },
+      }
+  - canonical_name: Grafana
+    slug: grafana
+    description: An observability visualization platform for metrics, logs, and traces.
+    category: infrastructure-tools
+    monitoring_priority: 88
+    aliases:
+      [{ value: Grafana dashboards, type: related_term, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Grafana] },
+        github: { search_queries: [grafana/grafana] },
+      }
+  - canonical_name: OpenTelemetry
+    slug: opentelemetry
+    description: A vendor-neutral standard and toolkit for generating telemetry signals.
+    category: infrastructure-tools
+    monitoring_priority: 94
+    aliases: [{ value: OTel, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [OpenTelemetry] },
+        github:
+          { search_queries: [open-telemetry/opentelemetry-specification] },
+      }
+  - canonical_name: Serverless Computing
+    slug: serverless-computing
+    description: A cloud execution model that abstracts server management and scales on demand.
+    category: cloud-infrastructure
+    monitoring_priority: 86
+    aliases: [{ value: FaaS, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Serverless computing] },
+        arxiv: { search_terms: [serverless computing] },
+      }
+  - canonical_name: Containers
+    slug: containers
+    description: Operating-system-level virtualization for packaging isolated application processes.
+    category: cloud-infrastructure
+    monitoring_priority: 90
+    aliases:
+      [
+        {
+          value: application containers,
+          type: related_term,
+          match_mode: phrase,
+        },
+      ]
+    sources:
+      {
+        wikipedia: { page_titles: [Containerization (computing)] },
+        github: { search_queries: [topic:containers] },
+      }
+  - canonical_name: Service Mesh
+    slug: service-mesh
+    description: A dedicated infrastructure layer for managing service-to-service communication.
+    category: cloud-infrastructure
+    monitoring_priority: 80
+    aliases:
+      [
+        {
+          value: service mesh architecture,
+          type: related_term,
+          match_mode: phrase,
+        },
+      ]
+    sources:
+      {
+        wikipedia: { page_titles: [Service mesh] },
+        github: { search_queries: [topic:service-mesh] },
+      }
+  - canonical_name: Microservices
+    slug: microservices
+    description: An application architecture composed of independently deployable network services.
+    category: cloud-infrastructure
+    monitoring_priority: 82
+    aliases:
+      [
+        {
+          value: microservice architecture,
+          type: related_term,
+          match_mode: phrase,
+        },
+      ]
+    sources:
+      {
+        wikipedia: { page_titles: [Microservices] },
+        arxiv: { search_terms: [microservices architecture] },
+      }
+  - canonical_name: Platform Engineering
+    slug: platform-engineering
+    description: Engineering internal platforms that provide reusable developer capabilities.
+    category: cloud-infrastructure
+    monitoring_priority: 92
+    aliases:
+      [
+        {
+          value: internal developer platform,
+          type: related_term,
+          match_mode: phrase,
+        },
+      ]
+    sources:
+      {
+        wikipedia: { page_titles: [Platform engineering] },
+        github: { search_queries: [topic:platform-engineering] },
+      }
+  - canonical_name: DevOps
+    slug: devops
+    description: Practices integrating software development, delivery automation, and operations.
+    category: cloud-infrastructure
+    monitoring_priority: 86
+    aliases: [{ value: development operations, type: name, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [DevOps] },
+        github: { search_queries: [topic:devops] },
+      }
+  - canonical_name: Site Reliability Engineering
+    slug: site-reliability-engineering
+    description: Applying software engineering methods to reliable production operations.
+    category: cloud-infrastructure
+    monitoring_priority: 88
+    aliases: [{ value: SRE, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Site reliability engineering] },
+        arxiv: { search_terms: [site reliability engineering] },
+      }
+  - canonical_name: Edge Computing
+    slug: edge-computing
+    description: Computing placed near users and data sources to reduce latency and transit.
+    category: cloud-infrastructure
+    monitoring_priority: 86
+    aliases: [{ value: edge cloud, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Edge computing] },
+        arxiv: { search_terms: [edge computing] },
+      }
+  - canonical_name: Observability
+    slug: observability
+    description: Understanding system behavior through metrics, logs, traces, and profiles.
+    category: infrastructure-tools
+    monitoring_priority: 94
+    aliases: [{ value: software observability, type: name, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Observability (software)] },
+        github: { search_queries: [topic:observability] },
+      }
+allowed_alias_collisions: []

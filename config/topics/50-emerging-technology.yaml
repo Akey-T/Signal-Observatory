@@ -1,0 +1,253 @@
+schema_version: 1
+categories: []
+topics:
+  - canonical_name: Quantum Computing
+    slug: quantum-computing
+    description: Computation using quantum states and operations to process information.
+    category: computing-paradigms
+    monitoring_priority: 92
+    aliases:
+      [{ value: quantum computers, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Quantum computing] },
+        arxiv: { search_terms: [quantum computing] },
+      }
+  - canonical_name: Spatial Computing
+    slug: spatial-computing
+    description: Computing interfaces that understand and interact with three-dimensional space.
+    category: computing-paradigms
+    monitoring_priority: 88
+    aliases:
+      [{ value: spatial interfaces, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Spatial computing] },
+        arxiv: { search_terms: [spatial computing] },
+      }
+  - canonical_name: Augmented Reality
+    slug: augmented-reality
+    description: Interactive systems that overlay digital content on a view of the physical world.
+    category: computing-paradigms
+    monitoring_priority: 84
+    aliases: [{ value: AR, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Augmented reality] },
+        arxiv: { search_terms: [augmented reality] },
+      }
+  - canonical_name: Virtual Reality
+    slug: virtual-reality
+    description: Immersive systems that simulate a user's presence in a virtual environment.
+    category: computing-paradigms
+    monitoring_priority: 82
+    aliases: [{ value: VR, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Virtual reality] },
+        arxiv: { search_terms: [virtual reality] },
+      }
+  - canonical_name: Robotics
+    slug: robotics
+    description: Engineering machines that sense, plan, and act in physical environments.
+    category: computing-paradigms
+    monitoring_priority: 92
+    aliases: [{ value: robot systems, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Robotics] },
+        arxiv: { search_terms: [robotics] },
+      }
+  - canonical_name: Autonomous Vehicles
+    slug: autonomous-vehicles
+    description: Vehicles capable of sensing their environment and navigating with limited intervention.
+    category: computing-paradigms
+    monitoring_priority: 88
+    aliases:
+      [{ value: self-driving cars, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Self-driving car] },
+        arxiv: { search_terms: [autonomous vehicle] },
+      }
+  - canonical_name: Unmanned Aerial Vehicles
+    slug: unmanned-aerial-vehicles
+    description: Aircraft operated remotely or autonomously without an onboard human pilot.
+    category: computing-paradigms
+    monitoring_priority: 78
+    aliases:
+      [
+        { value: UAV, type: abbreviation, case_sensitive: true },
+        { value: drones, type: name },
+      ]
+    sources:
+      {
+        wikipedia: { page_titles: [Unmanned aerial vehicle] },
+        arxiv: { search_terms: [unmanned aerial vehicle] },
+      }
+  - canonical_name: Blockchain
+    slug: blockchain
+    description: Distributed ledger structures that link cryptographically verifiable records.
+    category: computing-paradigms
+    monitoring_priority: 78
+    aliases:
+      [{ value: distributed ledger, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Blockchain] },
+        arxiv: { search_terms: [blockchain] },
+      }
+  - canonical_name: Web3
+    slug: web3
+    description: A proposed decentralized web ecosystem based on tokens and blockchain networks.
+    category: computing-paradigms
+    monitoring_priority: 68
+    aliases: [{ value: Web 3.0, type: spelling, case_sensitive: true }]
+    sources:
+      { wikipedia: { page_titles: [Web3] }, hacker_news: { terms: [Web3] } }
+  - canonical_name: Confidential Computing
+    slug: confidential-computing
+    description: Protecting data in use through trusted and hardware-isolated execution.
+    category: security-privacy
+    monitoring_priority: 86
+    aliases:
+      [
+        {
+          value: trusted execution environments,
+          type: related_term,
+          match_mode: phrase,
+        },
+      ]
+    sources:
+      {
+        wikipedia: { page_titles: [Confidential computing] },
+        arxiv: { search_terms: [confidential computing] },
+      }
+  - canonical_name: Privacy-Enhancing Technologies
+    slug: privacy-enhancing-technologies
+    description: Technologies that minimize data exposure while enabling useful computation.
+    category: security-privacy
+    monitoring_priority: 90
+    aliases: [{ value: PETs, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Privacy-enhancing technologies] },
+        arxiv: { search_terms: [privacy enhancing technology] },
+      }
+  - canonical_name: Zero Trust Security
+    slug: zero-trust-security
+    description: A security architecture that continuously verifies every access decision.
+    category: security-privacy
+    monitoring_priority: 86
+    aliases:
+      [
+        {
+          value: zero trust architecture,
+          type: related_term,
+          match_mode: phrase,
+        },
+      ]
+    sources:
+      {
+        wikipedia: { page_titles: [Zero trust security model] },
+        arxiv: { search_terms: [zero trust security] },
+      }
+  - canonical_name: Passkeys
+    slug: passkeys
+    description: Phishing-resistant credentials based on public-key authentication standards.
+    category: security-privacy
+    monitoring_priority: 90
+    aliases:
+      [{ value: WebAuthn passkeys, type: related_term, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [WebAuthn] },
+        github: { search_queries: [topic:passkeys] },
+      }
+  - canonical_name: Post-Quantum Cryptography
+    slug: post-quantum-cryptography
+    description: Cryptographic algorithms designed to resist attacks by quantum computers.
+    category: security-privacy
+    monitoring_priority: 96
+    aliases: [{ value: PQC, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Post-quantum cryptography] },
+        arxiv: { search_terms: [post quantum cryptography] },
+      }
+  - canonical_name: Homomorphic Encryption
+    slug: homomorphic-encryption
+    description: Encryption techniques that permit computation directly over encrypted values.
+    category: security-privacy
+    monitoring_priority: 86
+    aliases: [{ value: FHE, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Homomorphic encryption] },
+        arxiv: { search_terms: [fully homomorphic encryption] },
+      }
+  - canonical_name: Neuromorphic Computing
+    slug: neuromorphic-computing
+    description: Computing hardware and models inspired by biological neural systems.
+    category: computing-paradigms
+    monitoring_priority: 80
+    aliases:
+      [
+        {
+          value: neuromorphic engineering,
+          type: related_term,
+          match_mode: phrase,
+        },
+      ]
+    sources:
+      {
+        wikipedia: { page_titles: [Neuromorphic computing] },
+        arxiv: { search_terms: [neuromorphic computing] },
+      }
+  - canonical_name: Photonic Computing
+    slug: photonic-computing
+    description: Computing systems that use photons for communication or computation.
+    category: computing-paradigms
+    monitoring_priority: 80
+    aliases:
+      [{ value: optical computing, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Optical computing] },
+        arxiv: { search_terms: [photonic computing] },
+      }
+  - canonical_name: Digital Twins
+    slug: digital-twins
+    description: Digital representations synchronized with physical assets, systems, or processes.
+    category: computing-paradigms
+    monitoring_priority: 80
+    aliases: [{ value: digital twin, type: name, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Digital twin] },
+        arxiv: { search_terms: [digital twin] },
+      }
+  - canonical_name: Internet of Things
+    slug: internet-of-things
+    description: Networks of connected physical devices that sense and exchange data.
+    category: computing-paradigms
+    monitoring_priority: 78
+    aliases: [{ value: IoT, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Internet of things] },
+        arxiv: { search_terms: [internet of things] },
+      }
+  - canonical_name: Synthetic Biology
+    slug: synthetic-biology
+    description: Engineering biological systems using standardized design and fabrication methods.
+    category: emerging-technology
+    monitoring_priority: 84
+    aliases:
+      [{ value: engineering biology, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Synthetic biology] },
+        arxiv: { search_terms: [synthetic biology] },
+      }
+allowed_alias_collisions: []

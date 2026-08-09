@@ -1,0 +1,11 @@
+schema_version: 1
+categories: [{ name: AI Systems, slug: ai-systems }]
+topics:
+  - canonical_name: Model Context Protocol
+    slug: model-context-protocol
+    description: An initial protocol definition for version-change testing.
+    category: ai-systems
+    monitoring_priority: 80
+    aliases: [{ value: MCP, type: abbreviation, case_sensitive: true }]
+    sources: { github: { search_queries: [modelcontextprotocol] } }
+allowed_alias_collisions: []

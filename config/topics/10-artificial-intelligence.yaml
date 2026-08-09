@@ -1,0 +1,272 @@
+schema_version: 1
+categories: []
+topics:
+  - canonical_name: Artificial Intelligence
+    slug: artificial-intelligence
+    description: The broad field of building machines that perform tasks requiring intelligence.
+    category: artificial-intelligence
+    monitoring_priority: 100
+    aliases: [{ value: AI, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Artificial intelligence] },
+        arxiv: { search_terms: [artificial intelligence] },
+      }
+  - canonical_name: Machine Learning
+    slug: machine-learning
+    description: Computational methods that learn patterns and behavior from observed data.
+    category: ai-models
+    monitoring_priority: 98
+    aliases: [{ value: ML, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Machine learning] },
+        arxiv: { search_terms: [machine learning] },
+      }
+  - canonical_name: Deep Learning
+    slug: deep-learning
+    description: Machine learning methods based on multilayer artificial neural networks.
+    category: ai-models
+    monitoring_priority: 96
+    aliases:
+      [{ value: deep neural networks, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Deep learning] },
+        arxiv: { search_terms: [deep learning] },
+      }
+  - canonical_name: Generative AI
+    slug: generative-ai
+    description: Models and systems that synthesize new text, images, audio, code, or video.
+    category: ai-models
+    monitoring_priority: 100
+    aliases: [{ value: GenAI, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Generative artificial intelligence] },
+        arxiv: { search_terms: [generative AI] },
+      }
+  - canonical_name: Large Language Models
+    slug: large-language-models
+    description: Large neural language models trained for generation and language understanding.
+    category: ai-models
+    monitoring_priority: 100
+    aliases:
+      [
+        { value: LLM, type: abbreviation, case_sensitive: true },
+        { value: LLMs, type: abbreviation, case_sensitive: true },
+      ]
+    sources:
+      {
+        wikipedia: { page_titles: [Large language model] },
+        arxiv: { search_terms: [large language model] },
+      }
+  - canonical_name: Multimodal AI
+    slug: multimodal-ai
+    description: AI models that jointly understand or generate multiple information modalities.
+    category: ai-models
+    monitoring_priority: 96
+    aliases:
+      [{ value: multimodal models, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Multimodal learning] },
+        arxiv: { search_terms: [multimodal model] },
+      }
+  - canonical_name: Natural Language Processing
+    slug: natural-language-processing
+    description: Computational techniques for understanding and generating human language.
+    category: ai-models
+    monitoring_priority: 92
+    aliases: [{ value: NLP, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Natural language processing] },
+        arxiv: { search_terms: [natural language processing] },
+      }
+  - canonical_name: Computer Vision
+    slug: computer-vision
+    description: Computational methods for extracting information from images and video.
+    category: ai-models
+    monitoring_priority: 90
+    aliases: [{ value: machine vision, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Computer vision] },
+        arxiv: { search_terms: [computer vision] },
+      }
+  - canonical_name: Reinforcement Learning
+    slug: reinforcement-learning
+    description: Learning policies through interaction, rewards, and sequential decision making.
+    category: ai-models
+    monitoring_priority: 88
+    aliases: [{ value: RL, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Reinforcement learning] },
+        arxiv: { search_terms: [reinforcement learning] },
+      }
+  - canonical_name: AI Agents
+    slug: ai-agents
+    description: AI systems that plan, use tools, and act toward goals with some autonomy.
+    category: ai-systems
+    monitoring_priority: 100
+    aliases: [{ value: agentic AI, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Intelligent agent] },
+        arxiv: { search_terms: [AI agent] },
+      }
+  - canonical_name: Retrieval-Augmented Generation
+    slug: retrieval-augmented-generation
+    description: Generation systems grounded by retrieving relevant external information.
+    category: ai-systems
+    monitoring_priority: 96
+    aliases: [{ value: RAG, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Retrieval-augmented generation] },
+        arxiv: { search_terms: [retrieval augmented generation] },
+      }
+  - canonical_name: Vector Embeddings
+    slug: vector-embeddings
+    description: Dense numerical representations used to encode semantic relationships.
+    category: ai-models
+    monitoring_priority: 88
+    aliases:
+      [{ value: embedding vectors, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Word embedding] },
+        arxiv: { search_terms: [vector embedding] },
+      }
+  - canonical_name: Transformer Architecture
+    slug: transformer-architecture
+    description: Attention-based neural network architecture underlying many foundation models.
+    category: ai-models
+    monitoring_priority: 94
+    aliases: [{ value: transformers, type: name }]
+    sources:
+      {
+        wikipedia: { page_titles: [Transformer (deep learning architecture)] },
+        arxiv: { search_terms: [transformer architecture] },
+      }
+  - canonical_name: Diffusion Models
+    slug: diffusion-models
+    description: Generative models that learn to reverse a progressive noising process.
+    category: ai-models
+    monitoring_priority: 86
+    aliases:
+      [
+        {
+          value: diffusion probabilistic models,
+          type: related_term,
+          match_mode: phrase,
+        },
+      ]
+    sources:
+      {
+        wikipedia: { page_titles: [Diffusion model] },
+        arxiv: { search_terms: [diffusion model] },
+      }
+  - canonical_name: Foundation Models
+    slug: foundation-models
+    description: Broad pretrained models adapted to many downstream applications and tasks.
+    category: ai-models
+    monitoring_priority: 96
+    aliases: [{ value: foundation model, type: name, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Foundation model] },
+        arxiv: { search_terms: [foundation model] },
+      }
+  - canonical_name: Open-Source AI
+    slug: open-source-ai
+    description: AI models and systems distributed with openly accessible implementation assets.
+    category: ai-systems
+    monitoring_priority: 92
+    aliases: [{ value: open models, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Open-source artificial intelligence] },
+        github: { search_queries: [topic:machine-learning stars:>1000] },
+      }
+  - canonical_name: Edge AI
+    slug: edge-ai
+    description: AI inference and learning performed on devices near the source of data.
+    category: ai-systems
+    monitoring_priority: 82
+    aliases: [{ value: on-device AI, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Edge computing] },
+        arxiv: { search_terms: [edge AI] },
+      }
+  - canonical_name: Responsible AI
+    slug: responsible-ai
+    description: Practices for developing and governing AI with accountability and fairness.
+    category: ai-systems
+    monitoring_priority: 90
+    aliases: [{ value: ethical AI, type: related_term, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Ethics of artificial intelligence] },
+        arxiv: { search_terms: [responsible AI] },
+      }
+  - canonical_name: AI Safety
+    slug: ai-safety
+    description: Research and engineering focused on preventing harmful AI system outcomes.
+    category: ai-systems
+    monitoring_priority: 96
+    aliases:
+      [
+        {
+          value: artificial intelligence safety,
+          type: name,
+          match_mode: phrase,
+        },
+      ]
+    sources:
+      {
+        wikipedia: { page_titles: [AI safety] },
+        arxiv: { search_terms: [AI safety] },
+      }
+  - canonical_name: MLOps
+    slug: mlops
+    description: Operational practices for deploying, monitoring, and maintaining ML systems.
+    category: ai-systems
+    monitoring_priority: 88
+    aliases:
+      [{ value: machine learning operations, type: name, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [MLOps] },
+        github: { search_queries: [topic:mlops] },
+      }
+  - canonical_name: Model Context Protocol
+    slug: model-context-protocol
+    description: An open protocol connecting AI applications to tools and contextual data sources.
+    category: ai-systems
+    monitoring_priority: 98
+    aliases:
+      - { value: MCP, type: abbreviation, case_sensitive: true }
+      - { value: modelcontextprotocol, type: spelling }
+      - { value: model-context-protocol, type: spelling }
+      - {
+          value: MCP server,
+          type: search_term,
+          match_mode: phrase,
+          case_sensitive: true,
+        }
+      - {
+          value: MCP servers,
+          type: search_term,
+          match_mode: phrase,
+          case_sensitive: true,
+        }
+    sources:
+      arxiv: { search_terms: [model context protocol] }
+      github: { search_queries: [modelcontextprotocol, MCP server] }
+      hacker_news: { terms: [Model Context Protocol, MCP server] }
+      wikipedia: { page_titles: [Model Context Protocol] }
+allowed_alias_collisions: []

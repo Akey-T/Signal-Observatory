@@ -1,0 +1,17 @@
+schema_version: 1
+categories:
+  - name: AI Systems
+    slug: ai-systems
+    description: Curated systems built with artificial intelligence.
+topics:
+  - canonical_name: Model Context Protocol
+    slug: model-context-protocol
+    description: An open protocol connecting AI applications to tools and contextual data.
+    category: ai-systems
+    monitoring_priority: 95
+    aliases:
+      - { value: MCP, type: abbreviation, case_sensitive: true }
+    sources:
+      github: { search_queries: [modelcontextprotocol] }
+      wikipedia: { page_titles: [Model Context Protocol] }
+allowed_alias_collisions: []

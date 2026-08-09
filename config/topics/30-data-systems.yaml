@@ -1,0 +1,238 @@
+schema_version: 1
+categories: []
+topics:
+  - canonical_name: PostgreSQL
+    slug: postgresql
+    description: An extensible open-source relational database management system.
+    category: databases
+    monitoring_priority: 94
+    aliases: [{ value: Postgres, type: product_name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [PostgreSQL] },
+        github: { search_queries: [postgres/postgres] },
+      }
+  - canonical_name: MySQL
+    slug: mysql
+    description: A widely deployed open-source relational database management system.
+    category: databases
+    monitoring_priority: 84
+    aliases: [{ value: MySQL database, type: name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [MySQL] },
+        github: { search_queries: [mysql/mysql-server] },
+      }
+  - canonical_name: SQLite
+    slug: sqlite
+    description: An embedded relational database engine distributed as a compact library.
+    category: databases
+    monitoring_priority: 86
+    aliases: [{ value: SQLite database, type: name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [SQLite] },
+        github: { search_queries: [sqlite/sqlite] },
+      }
+  - canonical_name: MongoDB
+    slug: mongodb
+    description: A document-oriented database designed around flexible JSON-like records.
+    category: databases
+    monitoring_priority: 84
+    aliases: [{ value: Mongo, type: product_name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [MongoDB] },
+        github: { search_queries: [mongodb/mongo] },
+      }
+  - canonical_name: Redis
+    slug: redis
+    description: An in-memory data structure server used for caching and messaging.
+    category: databases
+    monitoring_priority: 88
+    aliases: [{ value: Redis database, type: name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Redis] },
+        github: { search_queries: [redis/redis] },
+      }
+  - canonical_name: Elasticsearch
+    slug: elasticsearch
+    description: A distributed search and analytics engine based on inverted indexes.
+    category: databases
+    monitoring_priority: 84
+    aliases: [{ value: Elastic Search, type: spelling, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Elasticsearch] },
+        github: { search_queries: [elastic/elasticsearch] },
+      }
+  - canonical_name: ClickHouse
+    slug: clickhouse
+    description: A column-oriented analytical database built for fast aggregate queries.
+    category: databases
+    monitoring_priority: 90
+    aliases: [{ value: ClickHouse DB, type: name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [ClickHouse] },
+        github: { search_queries: [ClickHouse/ClickHouse] },
+      }
+  - canonical_name: Snowflake
+    slug: snowflake
+    description: A managed cloud data platform centered on analytical data warehousing.
+    category: data-engineering
+    monitoring_priority: 88
+    aliases:
+      [
+        {
+          value: Snowflake Data Cloud,
+          type: product_name,
+          case_sensitive: true,
+        },
+      ]
+    sources:
+      {
+        wikipedia: { page_titles: [Snowflake Inc.] },
+        hacker_news: { terms: [Snowflake database] },
+      }
+  - canonical_name: Google BigQuery
+    slug: google-bigquery
+    description: Google's serverless managed data warehouse for large-scale analytics.
+    category: data-engineering
+    monitoring_priority: 88
+    aliases: [{ value: BigQuery, type: product_name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [BigQuery] },
+        hacker_news: { terms: [Google BigQuery] },
+      }
+  - canonical_name: Apache Kafka
+    slug: apache-kafka
+    description: A distributed event streaming platform for durable high-throughput logs.
+    category: data-engineering
+    monitoring_priority: 92
+    aliases: [{ value: Kafka, type: product_name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Apache Kafka] },
+        github: { search_queries: [apache/kafka] },
+      }
+  - canonical_name: Apache Spark
+    slug: apache-spark
+    description: A distributed compute engine for batch, streaming, and machine learning workloads.
+    category: data-engineering
+    monitoring_priority: 88
+    aliases: [{ value: Spark, type: product_name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Apache Spark] },
+        github: { search_queries: [apache/spark] },
+      }
+  - canonical_name: Apache Flink
+    slug: apache-flink
+    description: A distributed processing engine designed for stateful data streams.
+    category: data-engineering
+    monitoring_priority: 86
+    aliases: [{ value: Flink, type: product_name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Apache Flink] },
+        github: { search_queries: [apache/flink] },
+      }
+  - canonical_name: dbt
+    slug: dbt
+    description: An analytics engineering tool for transforming data with modular SQL models.
+    category: data-engineering
+    monitoring_priority: 90
+    aliases: [{ value: data build tool, type: name, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Dbt Labs] },
+        github: { search_queries: [dbt-labs/dbt-core] },
+      }
+  - canonical_name: Apache Airflow
+    slug: apache-airflow
+    description: A workflow orchestration platform for authoring and scheduling data pipelines.
+    category: data-engineering
+    monitoring_priority: 90
+    aliases: [{ value: Airflow, type: product_name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Apache Airflow] },
+        github: { search_queries: [apache/airflow] },
+      }
+  - canonical_name: Dagster
+    slug: dagster
+    description: A data orchestrator centered on software-defined assets and observability.
+    category: data-engineering
+    monitoring_priority: 82
+    aliases: [{ value: Dagster orchestrator, type: name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Dagster (software)] },
+        github: { search_queries: [dagster-io/dagster] },
+      }
+  - canonical_name: DuckDB
+    slug: duckdb
+    description: An embedded analytical database optimized for local columnar workloads.
+    category: databases
+    monitoring_priority: 92
+    aliases: [{ value: DuckDB database, type: name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [DuckDB] },
+        github: { search_queries: [duckdb/duckdb] },
+      }
+  - canonical_name: Data Lakehouse
+    slug: data-lakehouse
+    description: An architecture combining data lake storage with warehouse management features.
+    category: data-engineering
+    monitoring_priority: 86
+    aliases:
+      [
+        {
+          value: lakehouse architecture,
+          type: related_term,
+          match_mode: phrase,
+        },
+      ]
+    sources:
+      {
+        wikipedia: { page_titles: [Data lakehouse] },
+        arxiv: { search_terms: [data lakehouse] },
+      }
+  - canonical_name: Vector Databases
+    slug: vector-databases
+    description: Databases optimized for indexing and searching high-dimensional vector representations.
+    category: databases
+    monitoring_priority: 94
+    aliases: [{ value: vector DB, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Vector database] },
+        github: { search_queries: [topic:vector-database] },
+      }
+  - canonical_name: Graph Databases
+    slug: graph-databases
+    description: Databases that represent and query entities through nodes and relationships.
+    category: databases
+    monitoring_priority: 82
+    aliases: [{ value: graph DB, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Graph database] },
+        github: { search_queries: [topic:graph-database] },
+      }
+  - canonical_name: Time Series Databases
+    slug: time-series-databases
+    description: Databases specialized for timestamped measurements and temporal queries.
+    category: databases
+    monitoring_priority: 82
+    aliases: [{ value: TSDB, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Time series database] },
+        github: { search_queries: [topic:time-series-database] },
+      }
+allowed_alias_collisions: []

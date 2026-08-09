@@ -1,0 +1,104 @@
+schema_version: 1
+categories:
+  - {
+      name: Artificial Intelligence,
+      slug: artificial-intelligence,
+      description: AI research and models and applications and operational practices.,
+      sort_order: 10,
+    }
+  - {
+      name: AI Models,
+      slug: ai-models,
+      description: Model architectures and machine learning methods.,
+      parent: artificial-intelligence,
+      sort_order: 11,
+    }
+  - {
+      name: AI Systems,
+      slug: ai-systems,
+      description: Applied AI systems and safety and production operations.,
+      parent: artificial-intelligence,
+      sort_order: 12,
+    }
+  - {
+      name: Software Development,
+      slug: software-development,
+      description: Programming ecosystems and software delivery practices.,
+      sort_order: 20,
+    }
+  - {
+      name: Programming Languages,
+      slug: programming-languages,
+      description: General-purpose languages and language runtimes.,
+      parent: software-development,
+      sort_order: 21,
+    }
+  - {
+      name: Developer Tools,
+      slug: developer-tools,
+      description: Frameworks and version control and automation and developer environments.,
+      parent: software-development,
+      sort_order: 22,
+    }
+  - {
+      name: Data Systems,
+      slug: data-systems,
+      description: Technologies for storing and moving and processing and governing data.,
+      sort_order: 30,
+    }
+  - {
+      name: Databases,
+      slug: databases,
+      description: Operational and analytical and specialized database systems.,
+      parent: data-systems,
+      sort_order: 31,
+    }
+  - {
+      name: Data Engineering,
+      slug: data-engineering,
+      description: Streaming and orchestration and transformation and analytical platforms.,
+      parent: data-systems,
+      sort_order: 32,
+    }
+  - {
+      name: Cloud Infrastructure,
+      slug: cloud-infrastructure,
+      description: Cloud platforms and modern infrastructure operating models.,
+      sort_order: 40,
+    }
+  - {
+      name: Cloud Platforms,
+      slug: cloud-platforms,
+      description: Public cloud and edge service platforms.,
+      parent: cloud-infrastructure,
+      sort_order: 41,
+    }
+  - {
+      name: Infrastructure Tools,
+      slug: infrastructure-tools,
+      description: Provisioning and orchestration and telemetry and reliability tools.,
+      parent: cloud-infrastructure,
+      sort_order: 42,
+    }
+  - {
+      name: Emerging Technology,
+      slug: emerging-technology,
+      description: Technologies with rapidly evolving research and adoption signals.,
+      sort_order: 50,
+    }
+  - {
+      name: Computing Paradigms,
+      slug: computing-paradigms,
+      description: Emerging human-computer and computational paradigms.,
+      parent: emerging-technology,
+      sort_order: 51,
+    }
+  - {
+      name: Security and Privacy,
+      slug: security-privacy,
+      description: Security architecture and cryptography and identity and privacy technologies.,
+      parent: emerging-technology,
+      sort_order: 52,
+    }
+topics: []
+allowed_alias_collisions: []

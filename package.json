@@ -1,0 +1,24 @@
+{
+  "name": "signal-observatory",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace @signal-observatory/web",
+    "dev:web": "npm run dev --workspace @signal-observatory/web",
+    "lint": "npm run lint --workspace @signal-observatory/web",
+    "test": "npm run test --workspace @signal-observatory/web",
+    "typecheck": "npm run typecheck --workspace @signal-observatory/web",
+    "format:check": "prettier --check .",
+    "format": "prettier --write ."
+  },
+  "devDependencies": {
+    "prettier": "3.9.6"
+  },
+  "engines": {
+    "node": ">=24.0.0",
+    "npm": ">=11.0.0"
+  }
+}

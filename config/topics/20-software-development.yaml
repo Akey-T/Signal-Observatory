@@ -1,0 +1,229 @@
+schema_version: 1
+categories: []
+topics:
+  - canonical_name: Python
+    slug: python
+    description: A general-purpose programming language emphasizing readability and a large ecosystem.
+    category: programming-languages
+    monitoring_priority: 96
+    aliases: [{ value: Python language, type: name, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Python (programming language)] },
+        github: { search_queries: [language:Python stars:>1000] },
+      }
+  - canonical_name: JavaScript
+    slug: javascript
+    description: The primary scripting language of the web and a major server-side runtime ecosystem.
+    category: programming-languages
+    monitoring_priority: 96
+    aliases: [{ value: JS, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [JavaScript] },
+        github: { search_queries: [language:JavaScript stars:>1000] },
+      }
+  - canonical_name: TypeScript
+    slug: typescript
+    description: A typed superset of JavaScript designed for scalable application development.
+    category: programming-languages
+    monitoring_priority: 96
+    aliases: [{ value: TS, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [TypeScript] },
+        github: { search_queries: [language:TypeScript stars:>1000] },
+      }
+  - canonical_name: Rust
+    slug: rust
+    description: A systems programming language focused on memory safety and performance.
+    category: programming-languages
+    monitoring_priority: 92
+    aliases: [{ value: Rust language, type: name, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Rust (programming language)] },
+        github: { search_queries: [language:Rust stars:>1000] },
+      }
+  - canonical_name: Go
+    slug: go
+    description: A compiled programming language designed for simple, concurrent network services.
+    category: programming-languages
+    monitoring_priority: 90
+    aliases: [{ value: Golang, type: product_name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Go (programming language)] },
+        github: { search_queries: [language:Go stars:>1000] },
+      }
+  - canonical_name: Java
+    slug: java
+    description: A portable object-oriented programming language and virtual machine ecosystem.
+    category: programming-languages
+    monitoring_priority: 86
+    aliases: [{ value: Java language, type: name, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Java (programming language)] },
+        github: { search_queries: [language:Java stars:>1000] },
+      }
+  - canonical_name: C++
+    slug: cpp
+    description: A high-performance systems programming language derived from the C language.
+    category: programming-languages
+    monitoring_priority: 86
+    aliases: [{ value: cpp, type: spelling, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [C++] },
+        github: { search_queries: [language:C++ stars:>1000] },
+      }
+  - canonical_name: C Sharp
+    slug: c-sharp
+    description: A managed programming language central to the modern .NET software ecosystem.
+    category: programming-languages
+    monitoring_priority: 84
+    aliases:
+      [
+        { value: "C#", type: spelling, case_sensitive: true },
+        { value: csharp, type: spelling },
+      ]
+    sources:
+      {
+        wikipedia: { page_titles: [C Sharp (programming language)] },
+        github: { search_queries: [language:C# stars:>1000] },
+      }
+  - canonical_name: Kotlin
+    slug: kotlin
+    description: A statically typed language widely used for Android and JVM development.
+    category: programming-languages
+    monitoring_priority: 82
+    aliases: [{ value: Kotlin language, type: name, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Kotlin (programming language)] },
+        github: { search_queries: [language:Kotlin stars:>1000] },
+      }
+  - canonical_name: Swift
+    slug: swift
+    description: A compiled language used primarily for Apple platform application development.
+    category: programming-languages
+    monitoring_priority: 80
+    aliases: [{ value: Swift language, type: name, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Swift (programming language)] },
+        github: { search_queries: [language:Swift stars:>1000] },
+      }
+  - canonical_name: WebAssembly
+    slug: webassembly
+    description: A portable binary instruction format for safe high-performance execution.
+    category: programming-languages
+    monitoring_priority: 90
+    aliases: [{ value: Wasm, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [WebAssembly] },
+        github: { search_queries: [topic:webassembly] },
+      }
+  - canonical_name: Node.js
+    slug: node-js
+    description: A server-side JavaScript runtime built around an event-driven execution model.
+    category: developer-tools
+    monitoring_priority: 92
+    aliases: [{ value: NodeJS, type: spelling, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Node.js] },
+        github: { search_queries: [topic:nodejs] },
+      }
+  - canonical_name: React
+    slug: react
+    description: A component-based JavaScript library for building interactive user interfaces.
+    category: developer-tools
+    monitoring_priority: 94
+    aliases: [{ value: React.js, type: product_name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [React (software)] },
+        github: { search_queries: [topic:react] },
+      }
+  - canonical_name: Vue.js
+    slug: vue-js
+    description: A progressive JavaScript framework for building web user interfaces.
+    category: developer-tools
+    monitoring_priority: 84
+    aliases: [{ value: VueJS, type: spelling, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Vue.js] },
+        github: { search_queries: [topic:vue] },
+      }
+  - canonical_name: Svelte
+    slug: svelte
+    description: A compiler-oriented framework for creating reactive web applications.
+    category: developer-tools
+    monitoring_priority: 84
+    aliases: [{ value: Svelte framework, type: name, match_mode: phrase }]
+    sources:
+      {
+        wikipedia: { page_titles: [Svelte] },
+        github: { search_queries: [topic:svelte] },
+      }
+  - canonical_name: Git
+    slug: git
+    description: A distributed version control system used throughout modern software delivery.
+    category: developer-tools
+    monitoring_priority: 88
+    aliases: [{ value: Git VCS, type: related_term, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Git] },
+        github: { search_queries: [topic:git] },
+      }
+  - canonical_name: GitHub Actions
+    slug: github-actions
+    description: GitHub's integrated automation service for software workflows and CI/CD.
+    category: developer-tools
+    monitoring_priority: 88
+    aliases: [{ value: GHA, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [GitHub] },
+        github: { search_queries: [topic:github-actions] },
+      }
+  - canonical_name: Docker
+    slug: docker
+    description: A platform and toolchain for building and running application containers.
+    category: developer-tools
+    monitoring_priority: 94
+    aliases:
+      [{ value: Docker Engine, type: product_name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Docker (software)] },
+        github: { search_queries: [topic:docker] },
+      }
+  - canonical_name: Kubernetes
+    slug: kubernetes
+    description: An open-source control plane for orchestrating containerized workloads.
+    category: developer-tools
+    monitoring_priority: 96
+    aliases: [{ value: K8s, type: abbreviation, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Kubernetes] },
+        github: { search_queries: [topic:kubernetes] },
+      }
+  - canonical_name: Visual Studio Code
+    slug: visual-studio-code
+    description: A cross-platform source code editor with a broad extension ecosystem.
+    category: developer-tools
+    monitoring_priority: 86
+    aliases: [{ value: VS Code, type: product_name, case_sensitive: true }]
+    sources:
+      {
+        wikipedia: { page_titles: [Visual Studio Code] },
+        github: { search_queries: [microsoft/vscode] },
+      }
+allowed_alias_collisions: []
