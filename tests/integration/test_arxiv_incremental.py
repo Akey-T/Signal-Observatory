@@ -122,11 +122,14 @@ def test_incremental_first_and_second_run_use_overlap_window(
     migrated_engine: Engine, tmp_path: Path
 ) -> None:
     queries: list[str] = []
+    starts: list[str] = []
 
     async def transport(
         url: str, _headers: Mapping[str, str], _timeout: float
     ) -> tuple[int, Mapping[str, str], bytes]:
-        queries.append(request_values(url)["search_query"])
+        values = request_values(url)
+        queries.append(values["search_query"])
+        starts.append(values["start"])
         return 200, {}, (FIXTURES / "empty_result.xml").read_bytes()
 
     fake_time = FakeTime()
@@ -150,6 +153,7 @@ def test_incremental_first_and_second_run_use_overlap_window(
         assert first.status == second.status == "succeeded"
         assert "submittedDate:[202608080000 TO 202608100000]" in queries[0]
         assert "submittedDate:[202608080000 TO 202608110000]" in queries[1]
+        assert starts == ["0", "0"]
         assert cursor is not None
         assert cursor.status is ArxivCursorStatus.SUCCEEDED
         assert cursor.last_successful_run_at == fake_time.wall()
