@@ -1,12 +1,16 @@
 import { formatRegistryDate } from "../../lib/format";
-import type { RegistryStatus } from "../../types/api";
+import type { ArxivStatus, RegistryStatus } from "../../types/api";
 
 export function RegistryStatusPanel({
   status,
   categoryCount,
+  collectorStatus,
+  collectorError,
 }: {
   status: RegistryStatus;
   categoryCount: number;
+  collectorStatus: ArxivStatus | null;
+  collectorError: boolean;
 }) {
   const entries = [
     ["Registry", `v${status.version}`],
@@ -17,6 +21,16 @@ export function RegistryStatusPanel({
     ["Signal mappings", status.source_mapping_count],
     ["Warnings", status.warnings],
   ] as const;
+  const collectorLabel = collectorError
+    ? "Unavailable"
+    : collectorStatus === null
+      ? "Checking"
+      : collectorStatus.collector_state === "healthy" &&
+          collectorStatus.last_successful_run_at !== null
+        ? "Live"
+        : collectorStatus.collector_state === "degraded"
+          ? "Degraded"
+          : "Not initialized";
 
   return (
     <section
@@ -29,9 +43,9 @@ export function RegistryStatusPanel({
           <h2 id="status-title">Registry health, not collector health.</h2>
         </div>
         <p>
-          These values describe the curated registry and its mappings. External
-          collectors have not started, so no source is presented as live or
-          healthy.
+          These metrics describe only the curated Registry and its mappings.
+          Research collector state is reported separately and never changes
+          Registry health.
         </p>
       </div>
       <div className="status-panel">
@@ -49,12 +63,20 @@ export function RegistryStatusPanel({
             <strong>{formatRegistryDate(status.last_synced_at)}</strong>
           </div>
           <div>
-            <span>External collectors</span>
-            <strong className="status-panel__pending">Not enabled</strong>
+            <span>Research collector</span>
+            <strong
+              className={
+                collectorLabel === "Live"
+                  ? "status-panel__live"
+                  : "status-panel__pending"
+              }
+            >
+              {collectorLabel}
+            </strong>
           </div>
           <p>
-            Configured mappings are ready for future ingestion; they are not
-            observations.
+            arXiv is the only implemented observation source. GitHub, Hacker
+            News and Wikipedia mappings are not collecting yet.
           </p>
         </div>
       </div>

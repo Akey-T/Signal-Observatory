@@ -108,6 +108,13 @@ describe("Overview", () => {
     expect(
       screen.getByText("Registry health, not collector health."),
     ).toBeInTheDocument();
+    expect(screen.getByText("Not initialized")).toBeInTheDocument();
+    expect(
+      screen.getByText("Research/arXiv implemented · 3 channels pending"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText(/External collectors have not started/i),
+    ).not.toBeInTheDocument();
     expect(
       screen.queryByRole("heading", { name: /trending/i }),
     ).not.toBeInTheDocument();
@@ -128,6 +135,7 @@ describe("Overview", () => {
     expect(
       screen.getByText("Topic Registry ready · Research collector live"),
     ).toBeInTheDocument();
+    expect(screen.getByText("Research collector")).toBeInTheDocument();
   });
 });
 

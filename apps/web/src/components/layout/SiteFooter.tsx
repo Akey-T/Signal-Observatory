@@ -16,11 +16,11 @@ export function SiteFooter() {
         <Link className="site-footer__brand" to="/">
           Signal Observatory
         </Link>
-        <p>E00 · E01 · E02 complete</p>
+        <p>E00 · E01 · E02 · E03 complete</p>
       </div>
       <div className="site-footer__status">
         <span>{registryLabel}</span>
-        <span>External observations not yet enabled</span>
+        <span>Research/arXiv implemented · 3 channels pending</span>
       </div>
     </footer>
   );

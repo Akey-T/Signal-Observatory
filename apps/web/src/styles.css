@@ -863,6 +863,10 @@ dd {
   color: var(--amber);
 }
 
+.status-panel__meta .status-panel__live {
+  color: var(--teal);
+}
+
 .status-panel__meta p {
   margin: 0;
   padding-top: 24px;

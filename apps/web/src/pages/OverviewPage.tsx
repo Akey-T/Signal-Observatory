@@ -166,6 +166,8 @@ export function OverviewPage() {
           />
           <RegistryStatusPanel
             categoryCount={registry.categories.length}
+            collectorError={arxiv.error !== null}
+            collectorStatus={arxiv.data}
             status={registry.status}
           />
         </>
