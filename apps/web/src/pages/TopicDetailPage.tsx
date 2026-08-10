@@ -2,10 +2,14 @@ import { Link, useParams } from "react-router-dom";
 
 import { ApiError } from "../api/client";
 import { PageError, PageLoading } from "../components/layout/PageState";
+import {
+  LatestResearch,
+  ResearchObservations,
+} from "../components/signals/ResearchObservations";
 import { SignalChannelCard } from "../components/signals/SignalChannelCard";
 import { useRegistry } from "../context/RegistryContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { useTopicQuery } from "../hooks/useTopicData";
+import { useResearchQuery, useTopicQuery } from "../hooks/useTopicData";
 import { mappingForChannel, signalChannels } from "../lib/channels";
 import { categoryPath } from "../lib/topics";
 import { titleCase } from "../lib/format";
@@ -13,6 +17,7 @@ import { titleCase } from "../lib/format";
 export function TopicDetailPage() {
   const { slug = "" } = useParams();
   const topic = useTopicQuery(slug);
+  const research = useResearchQuery(slug);
   const registry = useRegistry();
   useDocumentTitle(
     topic.data
@@ -202,13 +207,26 @@ export function TopicDetailPage() {
             <h2 id="observations-title">Observations</h2>
           </div>
           <p>
-            No external observations yet. This topic is configured for
-            monitoring, but external collectors are not enabled yet.
+            Research reflects persisted arXiv observations. The other channels
+            remain configuration-only until their collectors are implemented.
           </p>
         </div>
         <div className="signal-channel-grid signal-channel-grid--observations">
           {signalChannels.map((channel) => {
             const mapping = mappingForChannel(topicData.sources, channel);
+            if (channel.key === "research") {
+              return (
+                <ResearchObservations
+                  channel={channel}
+                  data={research.data}
+                  error={research.error}
+                  key={channel.key}
+                  loading={research.loading}
+                  mapping={mapping}
+                  onRetry={research.retry}
+                />
+              );
+            }
             return (
               <SignalChannelCard
                 channel={channel}
@@ -219,6 +237,7 @@ export function TopicDetailPage() {
             );
           })}
         </div>
+        <LatestResearch data={research.data} />
       </section>
     </article>
   );

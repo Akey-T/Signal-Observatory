@@ -11,6 +11,7 @@ type SignalChannelCardProps = {
   mapping?: SourceMapping;
   state: SignalChannelState;
   showMappingDetails?: boolean;
+  children?: ReactNode;
 };
 
 export function SignalChannelCard({
@@ -18,6 +19,7 @@ export function SignalChannelCard({
   mapping,
   state,
   showMappingDetails = false,
+  children,
 }: SignalChannelCardProps) {
   const details = mapping ? mappingDetails(mapping) : [];
   return (
@@ -45,6 +47,8 @@ export function SignalChannelCard({
           ))}
         </div>
       ) : null}
+      {children}
     </article>
   );
 }
+import type { ReactNode } from "react";

@@ -1,8 +1,10 @@
 import type {
+  ArxivStatus,
   Category,
   RegistryStatus,
   Topic,
   TopicListResponse,
+  TopicResearch,
   TopicsQuery,
 } from "../types/api";
 
@@ -64,4 +66,18 @@ export function getTopics(
 
 export function getTopic(slug: string, signal?: AbortSignal): Promise<Topic> {
   return requestJson<Topic>(`/topics/${encodeURIComponent(slug)}`, signal);
+}
+
+export function getResearch(
+  slug: string,
+  signal?: AbortSignal,
+): Promise<TopicResearch> {
+  return requestJson<TopicResearch>(
+    `/topics/${encodeURIComponent(slug)}/research`,
+    signal,
+  );
+}
+
+export function getArxivStatus(signal?: AbortSignal): Promise<ArxivStatus> {
+  return requestJson<ArxivStatus>("/sources/arxiv/status", signal);
 }

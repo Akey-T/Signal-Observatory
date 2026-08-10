@@ -6,16 +6,21 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { App } from "./App";
 import {
   ApiError,
+  getArxivStatus,
   getCategories,
+  getResearch,
   getRegistryStatus,
   getTopic,
   getTopics,
 } from "./api/client";
 import {
   categories,
+  arxivStatus,
+  liveTopicResearch,
   makeTopic,
   modelContextProtocol,
   registryStatus,
+  topicResearch,
 } from "./test/fixtures";
 import type { TopicListResponse, TopicsQuery } from "./types/api";
 
@@ -32,6 +37,8 @@ vi.mock("./api/client", () => {
   return {
     ApiError: MockApiError,
     getCategories: vi.fn(),
+    getArxivStatus: vi.fn(),
+    getResearch: vi.fn(),
     getRegistryStatus: vi.fn(),
     getTopic: vi.fn(),
     getTopics: vi.fn(),
@@ -39,6 +46,8 @@ vi.mock("./api/client", () => {
 });
 
 const mockedGetCategories = vi.mocked(getCategories);
+const mockedGetArxivStatus = vi.mocked(getArxivStatus);
+const mockedGetResearch = vi.mocked(getResearch);
 const mockedGetRegistryStatus = vi.mocked(getRegistryStatus);
 const mockedGetTopic = vi.mocked(getTopic);
 const mockedGetTopics = vi.mocked(getTopics);
@@ -68,6 +77,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubGlobal("scrollTo", vi.fn());
   mockedGetCategories.mockResolvedValue(categories);
+  mockedGetArxivStatus.mockResolvedValue(arxivStatus);
+  mockedGetResearch.mockResolvedValue(topicResearch);
   mockedGetRegistryStatus.mockResolvedValue(registryStatus);
   mockedGetTopic.mockResolvedValue(modelContextProtocol);
   mockedGetTopics.mockResolvedValue(
@@ -100,6 +111,23 @@ describe("Overview", () => {
     expect(
       screen.queryByRole("heading", { name: /trending/i }),
     ).not.toBeInTheDocument();
+  });
+
+  it("marks Research live only after a successful healthy arXiv run", async () => {
+    mockedGetArxivStatus.mockResolvedValue({
+      ...arxivStatus,
+      collector_state: "healthy",
+      last_run_at: "2026-08-09T06:30:00Z",
+      last_successful_run_at: "2026-08-09T06:30:00Z",
+      last_run_status: "succeeded",
+    });
+    renderApp("/");
+
+    expect(await screen.findByText("arXiv · Live")).toBeInTheDocument();
+    expect(screen.getAllByText("Configured / ready")).toHaveLength(3);
+    expect(
+      screen.getByText("Topic Registry ready · Research collector live"),
+    ).toBeInTheDocument();
   });
 });
 
@@ -199,7 +227,7 @@ describe("Topic Explorer", () => {
 });
 
 describe("Topic Detail", () => {
-  it("shows canonical data, aliases, mappings and truthful observation placeholders", async () => {
+  it("shows configured Research as not collecting before its first successful run", async () => {
     renderApp("/topics/model-context-protocol");
 
     expect(
@@ -209,12 +237,79 @@ describe("Topic Detail", () => {
     expect(screen.getByText("MCP server")).toBeInTheDocument();
     expect(screen.getByText("Monitoring Channels")).toBeInTheDocument();
     expect(screen.getAllByText("Configured")).toHaveLength(4);
-    expect(
-      screen.getByText(/No external observations yet/),
-    ).toBeInTheDocument();
     expect(screen.getAllByText("Not collecting yet")).toHaveLength(4);
     expect(
+      screen.getByText(/no successful arXiv collection yet/i),
+    ).toBeInTheDocument();
+    expect(
       screen.getByText(/It is not popularity or trend strength/),
+    ).toBeInTheDocument();
+  });
+
+  it("shows live Research counts and the latest persisted paper", async () => {
+    mockedGetResearch.mockResolvedValue(liveTopicResearch);
+    renderApp("/topics/model-context-protocol");
+
+    expect(await screen.findByText("Live")).toBeInTheDocument();
+    expect(screen.getAllByText("Not collecting yet")).toHaveLength(3);
+    expect(screen.getByText("Papers · 7 days")).toBeInTheDocument();
+    expect(screen.getByText("3")).toBeInTheDocument();
+    expect(screen.getByText("Papers · 30 days")).toBeInTheDocument();
+    expect(screen.getByText("8")).toBeInTheDocument();
+    expect(screen.getByText("Authors · 30 days")).toBeInTheDocument();
+    expect(screen.getByText("17")).toBeInTheDocument();
+    expect(screen.getByText("Latest Research")).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: "Reliable Context Exchange for Agentic Systems",
+      }),
+    ).toHaveAttribute("href", "https://arxiv.org/abs/2608.01234");
+  });
+
+  it("shows a truthful live zero-paper state", async () => {
+    mockedGetResearch.mockResolvedValue({ ...topicResearch, state: "live" });
+    renderApp("/topics/model-context-protocol");
+
+    expect(
+      await screen.findByText(
+        "Collector live; no matched papers observed yet.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/zero count is a valid result/i),
+    ).toBeInTheDocument();
+  });
+
+  it("keeps historical papers visible while Research is degraded", async () => {
+    mockedGetResearch.mockResolvedValue({
+      ...liveTopicResearch,
+      state: "degraded",
+      collector_error: "upstream unavailable",
+    });
+    renderApp("/topics/model-context-protocol");
+
+    expect(await screen.findByText("Degraded")).toBeInTheDocument();
+    expect(
+      screen.getByText(/persisted history remains available below/i),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Reliable Context Exchange for Agentic Systems"),
+    ).toBeInTheDocument();
+  });
+
+  it("contains a Research API failure to the Research surface", async () => {
+    mockedGetResearch.mockRejectedValue(new Error("research offline"));
+    renderApp("/topics/model-context-protocol");
+
+    expect(
+      await screen.findByText(
+        "Research observations are temporarily unavailable.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Unavailable")).toBeInTheDocument();
+    expect(screen.getAllByText("Not collecting yet")).toHaveLength(3);
+    expect(
+      screen.getByRole("heading", { name: "Model Context Protocol" }),
     ).toBeInTheDocument();
   });
 

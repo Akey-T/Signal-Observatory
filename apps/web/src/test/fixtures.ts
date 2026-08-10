@@ -1,8 +1,10 @@
 import type {
+  ArxivStatus,
   Category,
   RegistryStatus,
   SourceMapping,
   Topic,
+  TopicResearch,
 } from "../types/api";
 
 export const categories: Category[] = [
@@ -49,6 +51,68 @@ export const registryStatus: RegistryStatus = {
   alias_count: 109,
   source_mapping_count: 204,
   warnings: 0,
+};
+
+export const arxivStatus: ArxivStatus = {
+  source: "arxiv",
+  enabled: true,
+  collector_state: "not_initialized",
+  last_run_at: null,
+  last_successful_run_at: null,
+  last_run_status: null,
+  tracked_topics: 1,
+  tracked_mappings: 1,
+  papers_observed: 0,
+  last_24h_new_papers: 0,
+  error_count_last_run: 0,
+};
+
+export const topicResearch: TopicResearch = {
+  topic: {
+    slug: "model-context-protocol",
+    canonical_name: "Model Context Protocol",
+  },
+  source: "arxiv",
+  state: "not_initialized",
+  last_observed_at: null,
+  collector_error: null,
+  summary: {
+    papers_total: 0,
+    papers_7d: 0,
+    papers_30d: 0,
+    unique_authors_30d: 0,
+  },
+  latest_papers: [],
+};
+
+export const liveTopicResearch: TopicResearch = {
+  ...topicResearch,
+  state: "live",
+  last_observed_at: "2026-08-09T06:30:00Z",
+  summary: {
+    papers_total: 12,
+    papers_7d: 3,
+    papers_30d: 8,
+    unique_authors_30d: 17,
+  },
+  latest_papers: [
+    {
+      arxiv_id: "2608.01234",
+      title: "Reliable Context Exchange for Agentic Systems",
+      authors: ["Ada Example", "Lin Researcher"],
+      published_at: "2026-08-08T12:00:00Z",
+      updated_at: "2026-08-09T06:30:00Z",
+      primary_category: "cs.AI",
+      categories: ["cs.AI", "cs.SE"],
+      abstract:
+        "A persisted example abstract used to verify the Research surface.",
+      abs_url: "https://arxiv.org/abs/2608.01234",
+      matched_query: 'all:"model context protocol"',
+      source_mapping_id: "mapping-arxiv-mcp",
+      ingestion_run_id: "run-1",
+      raw_checksum: "b".repeat(64),
+    },
+  ],
 };
 
 function sourceMapping(source: string): SourceMapping {

@@ -8,7 +8,7 @@ import { TopicCompactCard } from "../components/topic/TopicCompactCard";
 import { TopicUniverseSection } from "../components/topic/TopicUniverseSection";
 import { useRegistry } from "../context/RegistryContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { useTopicsQuery } from "../hooks/useTopicData";
+import { useArxivStatusQuery, useTopicsQuery } from "../hooks/useTopicData";
 import { selectFeaturedTopics, selectSupportingTopics } from "../lib/topics";
 
 const observationPath = [
@@ -22,6 +22,10 @@ export function OverviewPage() {
   useDocumentTitle("Signal Observatory");
   const registry = useRegistry();
   const topics = useTopicsQuery({ limit: 500, offset: 0 });
+  const arxiv = useArxivStatusQuery();
+  const researchLive =
+    arxiv.data?.collector_state === "healthy" &&
+    arxiv.data.last_successful_run_at !== null;
   const retry = () => {
     registry.retry();
     topics.retry();
@@ -47,7 +51,8 @@ export function OverviewPage() {
           </p>
           <div className="truth-note">
             <span aria-hidden="true" />
-            Topic Registry ready · External observations not yet enabled
+            Topic Registry ready · Research collector{" "}
+            {researchLive ? "live" : "not live"}
           </div>
         </div>
 
@@ -60,7 +65,11 @@ export function OverviewPage() {
               <span>0{index + 1}</span>
               <strong>{stage}</strong>
               <em>{source}</em>
-              <small>Configured / ready</small>
+              <small>
+                {stage === "Research" && researchLive
+                  ? "arXiv · Live"
+                  : "Configured / ready"}
+              </small>
             </div>
           ))}
         </div>

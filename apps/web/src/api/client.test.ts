@@ -1,7 +1,17 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getRegistryStatus, getTopics } from "./client";
-import { makeTopic, registryStatus } from "../test/fixtures";
+import {
+  getArxivStatus,
+  getRegistryStatus,
+  getResearch,
+  getTopics,
+} from "./client";
+import {
+  arxivStatus,
+  makeTopic,
+  registryStatus,
+  topicResearch,
+} from "../test/fixtures";
 
 function responseWith(body: unknown, status = 200): Response {
   return {
@@ -53,5 +63,29 @@ describe("registry API client", () => {
       name: "ApiError",
       status: 503,
     });
+  });
+
+  it("loads persisted Research observations for an encoded Topic slug", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(responseWith(topicResearch));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getResearch("model context/protocol")).resolves.toEqual(
+      topicResearch,
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/topics/model%20context%2Fprotocol/research",
+      expect.objectContaining({ headers: { Accept: "application/json" } }),
+    );
+  });
+
+  it("loads the arXiv collector status without inventing a live state", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(responseWith(arxivStatus));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getArxivStatus()).resolves.toEqual(arxivStatus);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/sources/arxiv/status",
+      expect.objectContaining({ headers: { Accept: "application/json" } }),
+    );
   });
 });

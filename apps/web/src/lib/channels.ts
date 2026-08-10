@@ -4,7 +4,12 @@ export type SignalChannelKey =
   "research" | "developer" | "community" | "public";
 
 export type SignalChannelState =
-  "not_configured" | "configured" | "not_collecting" | "live" | "error";
+  | "not_configured"
+  | "configured"
+  | "not_collecting"
+  | "live"
+  | "degraded"
+  | "error";
 
 export type SignalChannel = {
   key: SignalChannelKey;
@@ -64,6 +69,8 @@ export function signalStateLabel(state: SignalChannelState): string {
       return "Not collecting yet";
     case "live":
       return "Live";
+    case "degraded":
+      return "Degraded";
     case "error":
       return "Unavailable";
   }

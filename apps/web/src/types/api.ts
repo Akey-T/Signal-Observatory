@@ -69,3 +69,51 @@ export type TopicsQuery = {
   limit?: number;
   offset?: number;
 };
+
+export type ArxivStatus = {
+  source: "arxiv";
+  enabled: boolean;
+  collector_state: string;
+  last_run_at: string | null;
+  last_successful_run_at: string | null;
+  last_run_status: string | null;
+  tracked_topics: number;
+  tracked_mappings: number;
+  papers_observed: number;
+  last_24h_new_papers: number;
+  error_count_last_run: number;
+};
+
+export type ResearchPaper = {
+  arxiv_id: string;
+  title: string;
+  authors: string[];
+  published_at: string;
+  updated_at: string;
+  primary_category: string;
+  categories: string[];
+  abstract: string;
+  abs_url: string;
+  matched_query: string;
+  source_mapping_id: string;
+  ingestion_run_id: string;
+  raw_checksum: string | null;
+};
+
+export type TopicResearch = {
+  topic: {
+    slug: string;
+    canonical_name: string;
+  };
+  source: "arxiv";
+  state: "not_configured" | "not_initialized" | "live" | "degraded";
+  last_observed_at: string | null;
+  collector_error: string | null;
+  summary: {
+    papers_total: number;
+    papers_7d: number;
+    papers_30d: number;
+    unique_authors_30d: number;
+  };
+  latest_papers: ResearchPaper[];
+};
