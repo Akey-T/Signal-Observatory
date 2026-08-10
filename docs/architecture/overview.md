@@ -19,7 +19,26 @@ flowchart LR
     API --> UI["React UI"]
 ```
 
-E00-E02 implement the platform through Silver, add the curated Topic Registry, and define the Gold boundary. E02.5 adds a read-only Topic Observatory Experience over the existing API. Real source collection, aggregations, and trend algorithms remain deliberately absent.
+E00-E02 implement the platform through Silver, add the curated Topic Registry, and define the Gold boundary. E02.5 adds a read-only Topic Observatory Experience. E03 adds the first real source: selective arXiv metadata collection through explicit Registry mappings. Aggregations and trend algorithms remain deliberately absent.
+
+## arXiv Research observation flow
+
+```mermaid
+flowchart LR
+    Registry["Enabled Registry arXiv mapping"] --> Builder["Deterministic query builder"]
+    Builder --> API["Official arXiv API"]
+    API --> Raw["Immutable Raw response"]
+    Raw --> Parser["Atom parser"]
+    Parser --> Paper["Silver Paper authors categories"]
+    Paper --> Match["Many-to-many Topic match"]
+    Match --> Research["Read-only Research API"]
+    Research --> Web["Topic Research surface"]
+```
+
+Every received response reaches Raw before parser or HTTP-status handling. `arxiv_raw_responses`
+indexes the request evidence, and `arxiv_paper_observations` links each normalized observation to
+the exact Raw checksum and ingestion run. `arxiv_topic_matches` records the explicit mapping and
+query explanation; it does not assert an inferred semantic relationship.
 
 ## Topic Registry control plane
 
@@ -44,17 +63,17 @@ constructs requests.
 
 ## Runtime components
 
-| Component     | Responsibility                                     | Persistent writes           |
-| ------------- | -------------------------------------------------- | --------------------------- |
-| API           | Health/readiness and read-only Topic query surface | None                        |
-| Worker        | Graceful long-running collector host               | None until collectors exist |
-| PostgreSQL    | Silver entities and ingestion lifecycle            | Alembic-managed tables      |
-| Web           | Read-only Registry overview, explorer, and detail  | None                        |
-| LocalRawStore | Atomic Bronze publication and verification         | `data/raw/`                 |
+| Component     | Responsibility                                                  | Persistent writes        |
+| ------------- | --------------------------------------------------------------- | ------------------------ |
+| API           | Health/readiness, Topic, arXiv status, and Research reads       | None                     |
+| Worker        | Minimal daily arXiv scheduler and graceful collector host       | Raw/Silver via collector |
+| PostgreSQL    | Silver entities and ingestion lifecycle                         | Alembic-managed tables   |
+| Web           | Read-only Registry, explorer, detail, and Research observations | None                     |
+| LocalRawStore | Atomic Bronze publication and verification                      | `data/raw/`              |
 
-Docker Compose orders startup as PostgreSQL healthy → API migrated/healthy → Worker and Web. The API validates its configuration, retries database startup connectivity, and disposes its engine during graceful shutdown. The worker exposes health through a readiness file that exists only while its database-validated event loop is running.
+Docker Compose orders startup as PostgreSQL healthy → API migrated/healthy → Worker and Web. The API validates its configuration, retries database startup connectivity, and disposes its engine during graceful shutdown. The worker exposes health through a readiness file that exists only while its database-validated event loop and validated daily arXiv schedule are running. Manual backfill, incremental collection, status, and sampling remain available through the CLI.
 
-The Web UI consumes only the read-only Topic API. Featured topics are selected deterministically from active topics using editorial monitoring priority and top-level category diversity; the selection is a presentation rule, not persisted business state. Configured source mappings are displayed separately from future observation slots so the UI cannot imply that a collector is live before persisted observations exist.
+The Web UI consumes only read-only Topic and Research APIs. Featured topics are selected deterministically from active topics using editorial monitoring priority and top-level category diversity; paper counts do not affect that rule. Configured source mappings are displayed separately from observation state. Research becomes live only from a successful per-mapping cursor, degraded history remains visible, and GitHub/Hacker News/Wikipedia stay not collecting.
 
 ## Bronze invariants
 
@@ -79,10 +98,15 @@ The filesystem implementation is intentionally local. A future object-store impl
 - Reapplying an unchanged registry is a no-op.
 - Ingestion counters are non-negative.
 - Every ingestion transitions from `running` to exactly one terminal state and records its checkpoint boundary.
+- Canonical arXiv Paper identity excludes the version suffix; new versions update current Silver
+  while retaining immutable Raw observations.
+- Paper/Topic is many-to-many and every match records its Registry mapping and exact query.
+- Author order and arXiv categories are relational; author display names are not resolved identities.
+- Per-mapping cursors advance only after durable Raw and Silver persistence.
 
 ## Gold boundary
 
-Gold values must identify the topic, metric name, UTC window, numeric value, and metric definition version. Implementations must derive values from persisted Bronze/Silver inputs. No Trend Score is defined in E01 because a score without stable sources and a versioned definition would not be reproducible.
+Gold values must identify the topic, metric name, UTC window, numeric value, and metric definition version. Implementations must derive values from persisted Bronze/Silver inputs. E03 Research counts are read-time observation summaries over Paper publication timestamps, not Gold metrics. No Trend Score is defined because a score without a versioned definition would not be reproducible.
 
 ## Reliability and security
 

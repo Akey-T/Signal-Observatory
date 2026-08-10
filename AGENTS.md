@@ -33,6 +33,18 @@ These rules apply to the entire repository.
 27. UI must distinguish registry configuration from observed signals.
 28. Prefer existing read-only APIs over duplicated frontend data.
 29. Do not add UI-only database tables for homepage presentation.
+30. Never scrape arXiv human HTML pages for metadata.
+31. Respect arXiv machine-access guidance and request pacing.
+32. Every external response must be persisted to Raw before normalization.
+33. arXiv topic matches must remain explainable by explicit Registry mappings.
+34. Never silently generate or modify arXiv queries from aliases.
+35. Paper/topic is many-to-many.
+36. Cursor advancement must occur only after durable successful persistence.
+37. Re-running collection must remain idempotent.
+38. Collector errors must not destroy already persisted Raw data.
+39. Do not download PDFs or full text in E03.
+40. Do not derive Trend Score from paper counts in E03.
+41. External observations and Registry configuration remain separate concepts.
 
 ## Repository boundaries
 
@@ -40,7 +52,7 @@ These rules apply to the entire repository.
 - `packages/collector-core/` owns shared ingestion contracts and Bronze storage.
 - `packages/topic-registry/` owns curated Topic schema, validation, diff, and sync logic.
 - `db/` owns SQLAlchemy models, repositories, and Alembic migrations.
-- `collectors/` is reserved for source-specific collectors; none belong in E00-E02.5.
+- `collectors/` contains source-specific collectors; `collectors/arxiv/` owns E03 arXiv logic.
 - `config/topics/` is the administrative source of truth for curated Topics.
 - `data/raw/` is runtime state and must never be edited in place.
 - Gold analytics are interfaces only until their persisted inputs and metric definitions exist.
@@ -52,9 +64,10 @@ Run these from the repository root before declaring work complete:
 ```text
 python -m ruff check .
 python -m ruff format --check .
-python -m mypy apps packages db
+python -m mypy apps packages config db collectors
 python -m pytest
 npm run lint
+npm run format:check
 npm run typecheck
 npm run test
 npm run build
