@@ -16,6 +16,7 @@ from arxiv_collector.models import (
 )
 from arxiv_collector.parser import ArxivAPIError, ArxivAtomParser, ArxivParseError
 from arxiv_collector.persistence import ArxivPersistence, normalize_author_name
+from arxiv_collector.queries import ArxivQueryService
 from arxiv_collector.query import ArxivQueryBuilder, ArxivQueryError
 from arxiv_collector.service import (
     ArxivCollectionError,
@@ -38,6 +39,7 @@ __all__ = [
     "ArxivPersistence",
     "ArxivQueryBuilder",
     "ArxivQueryError",
+    "ArxivQueryService",
     "ArxivRequest",
     "ArxivRunSummary",
     "ArxivTransportError",

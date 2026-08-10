@@ -15,7 +15,12 @@ from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from arxiv_collector import ArxivCollectionError, ArxivCollectionService, ArxivRunSummary
+from arxiv_collector import (
+    ArxivCollectionError,
+    ArxivCollectionService,
+    ArxivQueryService,
+    ArxivRunSummary,
+)
 from observatory_db.models import Topic, TopicStatus
 from observatory_db.session import create_database_engine
 from signal_observatory_config import Settings
@@ -330,6 +335,77 @@ def arxiv_backfill(
     except ArxivCollectionError as error:
         _fail(str(error), code=EXIT_VALIDATION, as_json=as_json)
     _emit_arxiv_summary(summary, as_json=as_json)
+
+
+@arxiv_app.command("collect")
+def arxiv_collect(
+    topics: Annotated[list[str] | None, typer.Option("--topic")] = None,
+    max_pages: Annotated[int | None, typer.Option("--max-pages", min=1)] = None,
+    page_size: Annotated[int | None, typer.Option("--page-size", min=1, max=2000)] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Run one resumable incremental collection for enabled arXiv mappings."""
+
+    def operation(session: Session) -> ArxivRunSummary:
+        return asyncio.run(
+            ArxivCollectionService(session, Settings()).collect(
+                topic_slugs=topics,
+                max_pages=max_pages,
+                page_size=page_size,
+            )
+        )
+
+    try:
+        summary = _with_session(as_json, operation)
+    except ArxivCollectionError as error:
+        _fail(str(error), code=EXIT_VALIDATION, as_json=as_json)
+    _emit_arxiv_summary(summary, as_json=as_json)
+
+
+@arxiv_app.command("status")
+def arxiv_status(
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Show persisted collector state without contacting arXiv."""
+
+    payload: dict[str, object] = _with_session(
+        as_json, lambda session: ArxivQueryService(session).status()
+    )
+    if as_json:
+        _emit(payload, as_json=True)
+        return
+    _emit(
+        "arXiv collector status\n"
+        f"State: {payload['collector_state']}\n"
+        f"Last run: {payload['last_run_at']}\n"
+        f"Last successful run: {payload['last_successful_run_at']}\n"
+        f"Tracked topics/mappings: "
+        f"{payload['tracked_topics']}/{payload['tracked_mappings']}\n"
+        f"Papers observed: {payload['papers_observed']}\n"
+        f"Last run errors: {payload['error_count_last_run']}",
+        as_json=False,
+    )
+
+
+@arxiv_app.command("sample")
+def arxiv_sample(
+    topic: Annotated[str, typer.Option("--topic")],
+    limit: Annotated[int, typer.Option("--limit", min=1, max=100)] = 20,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Show deterministic matched-paper samples for human mapping review."""
+
+    def operation(session: Session) -> dict[str, object]:
+        service = ArxivQueryService(session)
+        if not service.topic_exists(topic):
+            raise ArxivCollectionError(f"topic not found: {topic}")
+        return {"topic_slug": topic, "limit": limit, "items": service.sample(topic, limit=limit)}
+
+    try:
+        payload = _with_session(as_json, operation)
+    except ArxivCollectionError as error:
+        _fail(str(error), code=EXIT_VALIDATION, as_json=as_json)
+    _emit(payload, as_json=as_json)
 
 
 def main() -> None:

@@ -107,6 +107,7 @@ class RunAccumulator:
     topics_considered: int = 0
     mappings_executed: int = 0
     api_requests: int = 0
+    records_requested: int = 0
     entries_received: int = 0
     counts: PersistenceCounts = field(default_factory=PersistenceCounts)
     errors: int = 0
@@ -227,6 +228,7 @@ class ArxivCollectionService:
                         accumulator=accumulator,
                         max_pages=max_pages,
                         page_size=page_size or self.settings.arxiv_page_size,
+                        mode="backfill",
                     )
                 except ArxivForbiddenError as error:
                     self._record_error(run, mapping, error, critical=True)
@@ -268,6 +270,89 @@ class ArxivCollectionService:
             data_quality=data_quality,
         )
 
+    async def collect(
+        self,
+        *,
+        topic_slugs: Sequence[str] | None = None,
+        page_size: int | None = None,
+        max_pages: int | None = None,
+    ) -> ArxivRunSummary:
+        mappings = self._enabled_mappings(topic_slugs)
+        observed_until = self._now()
+        accumulator = RunAccumulator(
+            started_at=observed_until,
+            topics_considered=len({mapping.topic_id for mapping in mappings}),
+        )
+        source = self._arxiv_source()
+        run = self._start_run(
+            source,
+            "incremental",
+            accumulator,
+            observed_until - timedelta(hours=self.settings.arxiv_incremental_overlap_hours),
+            observed_until,
+        )
+        started_monotonic = self._monotonic()
+        for mapping in mappings:
+            if self._runtime_exceeded(started_monotonic):
+                accumulator.stopped_by_safety_limit = True
+                break
+            accumulator.mappings_executed += 1
+            cursor = self._incremental_cursor(mapping)
+            window = self._incremental_window(cursor, observed_until)
+            base_query = self.query_builder.from_mapping(mapping)
+            accumulator.planned_queries.append(
+                self._plan_item(
+                    mapping,
+                    base_query,
+                    window,
+                    page_size or self.settings.arxiv_page_size,
+                )
+            )
+            try:
+                outcome = await self._collect_window(
+                    run=run,
+                    mapping=mapping,
+                    base_query=base_query,
+                    window=window,
+                    accumulator=accumulator,
+                    max_pages=max_pages,
+                    page_size=page_size or self.settings.arxiv_page_size,
+                    mode="incremental",
+                    cursor_override=cursor,
+                )
+            except ArxivForbiddenError as error:
+                self._record_error(run, mapping, error, critical=True)
+                accumulator.errors += 1
+                accumulator.failed_mappings.add(mapping.id)
+                break
+            except (
+                ArxivClientError,
+                ArxivCollectionError,
+                ArxivParseError,
+                ArxivQueryError,
+            ) as error:
+                self._record_error(run, mapping, error)
+                accumulator.errors += 1
+                accumulator.failed_mappings.add(mapping.id)
+                continue
+            if outcome.status is ArxivCursorStatus.SUCCEEDED:
+                accumulator.successful_windows += 1
+            else:
+                accumulator.failed_mappings.add(mapping.id)
+            if accumulator.api_requests >= self.settings.arxiv_max_requests_per_run:
+                accumulator.stopped_by_safety_limit = True
+                break
+
+        status = self._terminal_status(accumulator)
+        data_quality = self._finish_run(run, accumulator, status)
+        return self._summary(
+            mode="incremental",
+            run=run,
+            accumulator=accumulator,
+            status=status.value,
+            data_quality=data_quality,
+        )
+
     @staticmethod
     def partition_windows(
         window_from: datetime, window_until: datetime, *, window_days: int
@@ -292,9 +377,11 @@ class ArxivCollectionService:
         accumulator: RunAccumulator,
         max_pages: int | None,
         page_size: int,
+        mode: Literal["backfill", "incremental"],
+        cursor_override: ArxivCollectionCursor | None = None,
     ) -> WindowOutcome:
-        cursor = self._cursor(mapping, window)
-        if cursor.status is ArxivCursorStatus.SUCCEEDED:
+        cursor = cursor_override or self._cursor(mapping, window)
+        if mode == "backfill" and cursor.status is ArxivCursorStatus.SUCCEEDED:
             self._append_checkpoint(accumulator, cursor)
             return WindowOutcome(ArxivCursorStatus.SUCCEEDED)
         cursor.status = ArxivCursorStatus.RUNNING
@@ -361,7 +448,7 @@ class ArxivCollectionService:
                     raw=raw,
                     response=safe_response,
                     request_metadata={
-                        "mode": "backfill",
+                        "mode": mode,
                         "window_from": window.window_from.isoformat(),
                         "window_until": window.window_until.isoformat(),
                         "query_hash": hashlib.sha256(
@@ -370,6 +457,7 @@ class ArxivCollectionService:
                     },
                 )
                 accumulator.api_requests += 1
+                accumulator.records_requested += response.request.max_results
                 accumulator.raw_payloads += 1
                 self.session.commit()
 
@@ -398,6 +486,8 @@ class ArxivCollectionService:
                 and feed.total_results > self.settings.arxiv_large_query_threshold
             ):
                 raw_response.parsed_entry_count = len(feed.articles)
+                if mode == "incremental":
+                    return self._pause_cursor(cursor, accumulator, "large_incremental_query")
                 split = self._split_window(window)
                 if split is None:
                     return self._pause_cursor(cursor, accumulator, "large_query_one_day")
@@ -546,6 +636,57 @@ class ArxivCollectionService:
             self.session.flush()
         return cursor
 
+    def _incremental_cursor(self, mapping: TopicSourceMapping) -> ArxivCollectionCursor:
+        cursor = self.session.scalar(
+            select(ArxivCollectionCursor).where(
+                ArxivCollectionCursor.source_mapping_id == mapping.id,
+                ArxivCollectionCursor.cursor_key == "incremental",
+            )
+        )
+        if cursor is None:
+            cursor = ArxivCollectionCursor(
+                topic_id=mapping.topic_id,
+                source_mapping_id=mapping.id,
+                cursor_key="incremental",
+                mode="incremental",
+                next_start=0,
+                checkpoint={},
+                status=ArxivCursorStatus.PENDING,
+            )
+            self.session.add(cursor)
+            self.session.flush()
+        return cursor
+
+    def _incremental_window(
+        self,
+        cursor: ArxivCollectionCursor,
+        observed_until: datetime,
+    ) -> QueryWindow:
+        resumable = cursor.status in {
+            ArxivCursorStatus.RUNNING,
+            ArxivCursorStatus.PARTIAL,
+            ArxivCursorStatus.FAILED,
+        }
+        if resumable and cursor.window_from is not None and cursor.window_until is not None:
+            return QueryWindow(cursor.window_from, cursor.window_until)
+        overlap = timedelta(hours=self.settings.arxiv_incremental_overlap_hours)
+        window_from = (
+            cursor.last_query_until - overlap
+            if cursor.last_query_until is not None
+            else observed_until - overlap
+        )
+        cursor.next_start = 0
+        cursor.window_from = window_from
+        cursor.window_until = observed_until
+        cursor.checkpoint = {
+            "topic_id": str(cursor.topic_id),
+            "mapping_id": str(cursor.source_mapping_id),
+            "window_from": window_from.isoformat(),
+            "window_until": observed_until.isoformat(),
+            "next_start": 0,
+        }
+        return QueryWindow(window_from, observed_until)
+
     def _pause_cursor(
         self,
         cursor: ArxivCollectionCursor,
@@ -627,7 +768,7 @@ class ArxivCollectionService:
             )
         run.status = status
         run.finished_at = self._now()
-        run.records_requested = accumulator.api_requests * self.settings.arxiv_page_size
+        run.records_requested = accumulator.records_requested
         run.records_received = accumulator.entries_received
         run.records_inserted = accumulator.counts.papers_inserted
         run.records_updated = accumulator.counts.papers_updated
