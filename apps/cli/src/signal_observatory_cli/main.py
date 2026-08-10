@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import asyncio
 import getpass
 import json
 from collections.abc import Callable
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 from typing import Annotated, NoReturn
 
@@ -13,6 +15,7 @@ from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
+from arxiv_collector import ArxivCollectionError, ArxivCollectionService, ArxivRunSummary
 from observatory_db.models import Topic, TopicStatus
 from observatory_db.session import create_database_engine
 from signal_observatory_config import Settings
@@ -29,7 +32,9 @@ DEFAULT_REGISTRY_PATH = Path("config/topics")
 
 app = typer.Typer(help="Signal Observatory operational commands.", no_args_is_help=True)
 topics_app = typer.Typer(help="Validate, synchronize, and inspect the curated Topic Registry.")
+arxiv_app = typer.Typer(help="Collect and inspect official arXiv metadata.")
 app.add_typer(topics_app, name="topics")
+app.add_typer(arxiv_app, name="arxiv")
 
 
 def _emit(payload: object, *, as_json: bool) -> None:
@@ -231,6 +236,100 @@ def show_topic(
         _fail("topic not found", code=EXIT_VALIDATION, as_json=as_json, details={"slug": slug})
     payload = topic_to_dict(topic)
     _emit(payload, as_json=as_json)
+
+
+def _emit_arxiv_summary(summary: ArxivRunSummary, *, as_json: bool) -> None:
+    if as_json:
+        _emit(summary.model_dump(mode="json"), as_json=True)
+        return
+    if summary.mode == "dry_run":
+        _emit(
+            "arXiv backfill dry-run\n"
+            f"Topics considered: {summary.topics_considered}\n"
+            f"Planned windows: {len(summary.planned_queries)}\n"
+            f"Estimated minimum pacing delay: "
+            f"{summary.estimated_minimum_delay_seconds:.1f}s\n"
+            "No network, database, or Raw writes were performed.",
+            as_json=False,
+        )
+        return
+    _emit(
+        "arXiv collection complete\n\n"
+        f"Status:                 {summary.status}\n"
+        f"Topics considered:      {summary.topics_considered}\n"
+        f"Mappings executed:      {summary.mappings_executed}\n"
+        f"API requests:           {summary.api_requests}\n"
+        f"Entries received:       {summary.entries_received}\n"
+        f"New papers:             {summary.new_papers}\n"
+        f"Updated papers:         {summary.updated_papers}\n"
+        f"Existing papers:        {summary.existing_papers}\n"
+        f"Topic matches added:    {summary.topic_matches_added}\n"
+        f"Errors:                 {summary.errors}\n\n"
+        f"Raw payloads preserved: {summary.raw_payloads_preserved}",
+        as_json=False,
+    )
+
+
+def _parse_cli_date(value: str | None, *, option: str, as_json: bool) -> date | None:
+    if value is None:
+        return None
+    try:
+        return date.fromisoformat(value)
+    except ValueError:
+        _fail(
+            f"{option} must use YYYY-MM-DD",
+            code=EXIT_VALIDATION,
+            as_json=as_json,
+            details={option: value},
+        )
+
+
+@arxiv_app.command("backfill")
+def arxiv_backfill(
+    topics: Annotated[list[str] | None, typer.Option("--topic")] = None,
+    all_active: Annotated[bool, typer.Option("--all-active")] = False,
+    from_value: Annotated[str | None, typer.Option("--from")] = None,
+    until_value: Annotated[str | None, typer.Option("--until")] = None,
+    dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
+    max_pages: Annotated[int | None, typer.Option("--max-pages", min=1)] = None,
+    page_size: Annotated[int | None, typer.Option("--page-size", min=1, max=2000)] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Backfill bounded date windows for explicit enabled arXiv mappings."""
+
+    if bool(topics) == all_active:
+        _fail(
+            "choose one or more --topic values or --all-active",
+            code=EXIT_VALIDATION,
+            as_json=as_json,
+        )
+    today = datetime.now(UTC).date()
+    from_date = _parse_cli_date(from_value, option="--from", as_json=as_json)
+    until_date = _parse_cli_date(until_value, option="--until", as_json=as_json)
+    first_day = from_date or (today - timedelta(days=730))
+    final_day = until_date or today
+    if final_day < first_day:
+        _fail("--until cannot be before --from", code=EXIT_VALIDATION, as_json=as_json)
+
+    def operation(session: Session) -> ArxivRunSummary:
+        settings = Settings()
+        service = ArxivCollectionService(session, settings)
+        return asyncio.run(
+            service.backfill(
+                topic_slugs=topics if not all_active else None,
+                window_from=service.date_start(first_day),
+                window_until=service.date_until_exclusive(final_day),
+                dry_run=dry_run,
+                max_pages=max_pages,
+                page_size=page_size,
+            )
+        )
+
+    try:
+        summary = _with_session(as_json, operation)
+    except ArxivCollectionError as error:
+        _fail(str(error), code=EXIT_VALIDATION, as_json=as_json)
+    _emit_arxiv_summary(summary, as_json=as_json)
 
 
 def main() -> None:

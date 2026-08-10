@@ -17,12 +17,20 @@ from arxiv_collector.models import (
 from arxiv_collector.parser import ArxivAPIError, ArxivAtomParser, ArxivParseError
 from arxiv_collector.persistence import ArxivPersistence, normalize_author_name
 from arxiv_collector.query import ArxivQueryBuilder, ArxivQueryError
+from arxiv_collector.service import (
+    ArxivCollectionError,
+    ArxivCollectionService,
+    ArxivRunSummary,
+    QueryWindow,
+)
 
 __all__ = [
     "ArxivAPIError",
     "ArxivAtomParser",
     "ArxivClient",
     "ArxivClientError",
+    "ArxivCollectionError",
+    "ArxivCollectionService",
     "ArxivForbiddenError",
     "ArxivHTTPError",
     "ArxivHTTPResponse",
@@ -31,9 +39,11 @@ __all__ = [
     "ArxivQueryBuilder",
     "ArxivQueryError",
     "ArxivRequest",
+    "ArxivRunSummary",
     "ArxivTransportError",
     "MinimumIntervalLimiter",
     "ParsedArxivArticle",
     "ParsedArxivFeed",
+    "QueryWindow",
     "normalize_author_name",
 ]
