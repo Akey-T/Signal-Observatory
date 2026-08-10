@@ -13,6 +13,15 @@ def test_migration_upgrade_and_downgrade(tmp_path: Path) -> None:
     engine = create_engine(database_url)
     assert set(inspect(engine).get_table_names()) == {
         "alembic_version",
+        "arxiv_authors",
+        "arxiv_categories",
+        "arxiv_collection_cursors",
+        "arxiv_paper_authors",
+        "arxiv_paper_categories",
+        "arxiv_paper_observations",
+        "arxiv_papers",
+        "arxiv_raw_responses",
+        "arxiv_topic_matches",
         "data_quality_checks",
         "ingestion_errors",
         "ingestion_runs",

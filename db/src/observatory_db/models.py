@@ -31,6 +31,7 @@ JSON_TYPE = JSON().with_variant(JSONB(), "postgresql")
 class IngestionStatus(StrEnum):
     RUNNING = "running"
     SUCCEEDED = "succeeded"
+    PARTIAL = "partial"
     FAILED = "failed"
     CANCELLED = "cancelled"
 
