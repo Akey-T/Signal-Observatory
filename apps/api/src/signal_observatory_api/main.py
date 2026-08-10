@@ -20,6 +20,7 @@ from observatory_db.session import (
 )
 from signal_observatory_api import __version__
 from signal_observatory_api.logging import configure_logging
+from signal_observatory_api.research import router as research_router
 from signal_observatory_api.sources import router as sources_router
 from signal_observatory_api.topics import router as topics_router
 from signal_observatory_config import Settings, get_settings
@@ -63,6 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         lifespan=lifespan,
     )
     application.include_router(topics_router)
+    application.include_router(research_router)
     application.include_router(sources_router)
 
     @application.middleware("http")
