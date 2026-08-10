@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <id>https://export.arxiv.org/api/query/example</id><updated>2026-08-10T00:00:00Z</updated>
+  <opensearch:totalResults>1</opensearch:totalResults><opensearch:startIndex>0</opensearch:startIndex><opensearch:itemsPerPage>1</opensearch:itemsPerPage>
+  <entry>
+    <id>https://arxiv.org/abs/2608.01234v2</id><updated>2026-08-09T08:30:00Z</updated><published>2026-08-01T03:00:00Z</published>
+    <title>  A   Durable
+ Signal Observatory  </title><summary>  First line.
+
+ Second   line. </summary>
+    <author><name>Alice Example</name></author><author><name>Bob Researcher</name></author>
+    <category term="cs.AI"/><category term="cs.LG"/><arxiv:primary_category term="cs.AI"/>
+    <arxiv:comment>12 pages, 3 figures</arxiv:comment><arxiv:journal_ref>Journal 42 (2026)</arxiv:journal_ref><arxiv:doi>10.1000/example</arxiv:doi>
+    <link href="https://arxiv.org/abs/2608.01234v2" rel="alternate" type="text/html"/><link href="https://arxiv.org/pdf/2608.01234v2" rel="related" type="application/pdf" title="pdf"/><link href="https://creativecommons.org/licenses/by/4.0/" rel="license"/>
+  </entry>
+</feed>

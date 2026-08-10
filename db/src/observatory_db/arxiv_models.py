@@ -173,9 +173,7 @@ class ArxivRawResponse(Base):
 class ArxivPaperObservation(Base):
     __tablename__ = "arxiv_paper_observations"
     __table_args__ = (
-        UniqueConstraint(
-            "paper_id", "raw_response_id", name="uq_arxiv_paper_observations_lineage"
-        ),
+        UniqueConstraint("paper_id", "raw_response_id", name="uq_arxiv_paper_observations_lineage"),
         Index("ix_arxiv_paper_observations_run", "ingestion_run_id"),
     )
 

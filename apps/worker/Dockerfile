@@ -11,8 +11,10 @@ RUN python -m pip install --no-cache-dir -r requirements.lock
 
 COPY apps ./apps
 COPY packages ./packages
+COPY collectors ./collectors
 COPY config ./config
 COPY db ./db
+COPY alembic.ini ./
 RUN python -m pip install --no-cache-dir --no-deps .
 
 CMD ["python", "-m", "signal_observatory_worker.main"]

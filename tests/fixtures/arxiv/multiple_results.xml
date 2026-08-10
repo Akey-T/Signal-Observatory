@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom" xmlns:opensearch="http://a9.com/-/spec/opensearch/1.1/" xmlns:arxiv="http://arxiv.org/schemas/atom">
+  <opensearch:totalResults>2</opensearch:totalResults><opensearch:startIndex>0</opensearch:startIndex><opensearch:itemsPerPage>2</opensearch:itemsPerPage>
+  <entry><id>https://arxiv.org/abs/2608.00001v1</id><updated>2026-08-01T00:00:00Z</updated><published>2026-08-01T00:00:00Z</published><title>First paper</title><summary>First abstract.</summary><author><name>First Author</name></author><category term="cs.AI"/><arxiv:primary_category term="cs.AI"/><link href="https://arxiv.org/abs/2608.00001v1" rel="alternate" type="text/html"/></entry>
+  <entry><id>https://arxiv.org/abs/hep-ex/0307015v3</id><updated>2026-08-02T00:00:00Z</updated><published>2003-07-01T00:00:00Z</published><title>Second paper</title><summary>Second abstract.</summary><author><name>Second Author</name></author><category term="hep-ex"/><arxiv:primary_category term="hep-ex"/><link href="https://arxiv.org/abs/hep-ex/0307015v3" rel="alternate" type="text/html"/></entry>
+</feed>

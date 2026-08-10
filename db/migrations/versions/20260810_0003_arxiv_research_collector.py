@@ -17,9 +17,7 @@ branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 JSON_TYPE = sa.JSON().with_variant(postgresql.JSONB(), "postgresql")
-MATCH_METHOD = sa.Enum(
-    "ARXIV_API_QUERY", name="arxivmatchmethod", native_enum=False, length=32
-)
+MATCH_METHOD = sa.Enum("ARXIV_API_QUERY", name="arxivmatchmethod", native_enum=False, length=32)
 CURSOR_STATUS = sa.Enum(
     "pending",
     "running",
@@ -119,9 +117,7 @@ def upgrade() -> None:
             ondelete="CASCADE",
         ),
         sa.PrimaryKeyConstraint("paper_id", "position", name=op.f("pk_arxiv_paper_authors")),
-        sa.UniqueConstraint(
-            "paper_id", "author_id", name="uq_arxiv_paper_authors_identity"
-        ),
+        sa.UniqueConstraint("paper_id", "author_id", name="uq_arxiv_paper_authors_identity"),
     )
     op.create_index(op.f("ix_arxiv_paper_authors_author_id"), "arxiv_paper_authors", ["author_id"])
 
@@ -142,9 +138,7 @@ def upgrade() -> None:
             name=op.f("fk_arxiv_paper_categories_paper_id_arxiv_papers"),
             ondelete="CASCADE",
         ),
-        sa.PrimaryKeyConstraint(
-            "paper_id", "category_id", name=op.f("pk_arxiv_paper_categories")
-        ),
+        sa.PrimaryKeyConstraint("paper_id", "category_id", name=op.f("pk_arxiv_paper_categories")),
     )
 
     op.create_table(
@@ -360,9 +354,7 @@ def upgrade() -> None:
             name="uq_arxiv_collection_cursors_mapping_key",
         ),
     )
-    op.create_index(
-        "ix_arxiv_collection_cursors_topic", "arxiv_collection_cursors", ["topic_id"]
-    )
+    op.create_index("ix_arxiv_collection_cursors_topic", "arxiv_collection_cursors", ["topic_id"])
 
 
 def downgrade() -> None:
@@ -377,9 +369,7 @@ def downgrade() -> None:
     op.drop_index(
         op.f("ix_arxiv_raw_responses_source_mapping_id"), table_name="arxiv_raw_responses"
     )
-    op.drop_index(
-        op.f("ix_arxiv_raw_responses_payload_checksum"), table_name="arxiv_raw_responses"
-    )
+    op.drop_index(op.f("ix_arxiv_raw_responses_payload_checksum"), table_name="arxiv_raw_responses")
     op.drop_index("ix_arxiv_raw_responses_run_observed", table_name="arxiv_raw_responses")
     op.drop_table("arxiv_raw_responses")
     op.drop_table("arxiv_paper_categories")

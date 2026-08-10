@@ -11,6 +11,7 @@ RUN python -m pip install --no-cache-dir -r requirements.lock
 
 COPY apps ./apps
 COPY packages ./packages
+COPY collectors ./collectors
 COPY config ./config
 COPY db ./db
 COPY alembic.ini ./

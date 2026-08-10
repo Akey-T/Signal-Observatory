@@ -29,6 +29,7 @@ services:
       SIGNAL_LOG_LEVEL: INFO
       SIGNAL_DATABASE_URL: postgresql+psycopg://signal:signal@db:5432/signal_observatory
       SIGNAL_RAW_DATA_PATH: /app/data/raw
+      ARXIV_MIN_REQUEST_INTERVAL_SECONDS: "3.0"
     command:
       - sh
       - -c
@@ -62,6 +63,8 @@ services:
       SIGNAL_DATABASE_URL: postgresql+psycopg://signal:signal@db:5432/signal_observatory
       SIGNAL_RAW_DATA_PATH: /app/data/raw
       SIGNAL_WORKER_READY_FILE: /tmp/signal-worker-ready
+      ARXIV_MIN_REQUEST_INTERVAL_SECONDS: "3.0"
+      ARXIV_SCHEDULE: "0 2 * * *"
     volumes:
       - ./data/raw:/app/data/raw
     depends_on:
