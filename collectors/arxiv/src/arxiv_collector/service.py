@@ -117,6 +117,7 @@ class RunAccumulator:
     failed_mappings: set[UUID] = field(default_factory=set)
     checkpoints: list[dict[str, Any]] = field(default_factory=list)
     planned_queries: list[dict[str, Any]] = field(default_factory=list)
+    results_by_topic: dict[UUID, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -229,6 +230,7 @@ class ArxivCollectionService:
                         max_pages=max_pages,
                         page_size=page_size or self.settings.arxiv_page_size,
                         mode="backfill",
+                        started_monotonic=started_monotonic,
                     )
                 except ArxivForbiddenError as error:
                     self._record_error(run, mapping, error, critical=True)
@@ -319,6 +321,7 @@ class ArxivCollectionService:
                     page_size=page_size or self.settings.arxiv_page_size,
                     mode="incremental",
                     cursor_override=cursor,
+                    started_monotonic=started_monotonic,
                 )
             except ArxivForbiddenError as error:
                 self._record_error(run, mapping, error, critical=True)
@@ -378,6 +381,7 @@ class ArxivCollectionService:
         max_pages: int | None,
         page_size: int,
         mode: Literal["backfill", "incremental"],
+        started_monotonic: float,
         cursor_override: ArxivCollectionCursor | None = None,
     ) -> WindowOutcome:
         cursor = cursor_override or self._cursor(mapping, window)
@@ -403,19 +407,22 @@ class ArxivCollectionService:
             window_until=window.window_until,
         )
         pages = 0
-        results_seen = 0
         while True:
             if self._request_limit_reached(accumulator):
                 return self._pause_cursor(cursor, accumulator, "max_requests_per_run")
+            if self._runtime_exceeded(started_monotonic):
+                return self._pause_cursor(cursor, accumulator, "max_runtime_minutes")
             if max_pages is not None and pages >= max_pages:
                 return self._pause_cursor(cursor, accumulator, "max_pages")
-            if results_seen >= self.settings.arxiv_max_results_per_topic:
+            topic_results = accumulator.results_by_topic.get(mapping.topic_id, 0)
+            remaining_results = self.settings.arxiv_max_results_per_topic - topic_results
+            if remaining_results <= 0:
                 return self._pause_cursor(cursor, accumulator, "max_results_per_topic")
 
             request = ArxivRequest(
                 search_query=dated_query,
                 start=cursor.next_start,
-                max_results=page_size,
+                max_results=min(page_size, remaining_results),
                 sort_by="submittedDate",
                 sort_order="ascending",
             )
@@ -456,12 +463,24 @@ class ArxivCollectionService:
                         ).hexdigest(),
                     },
                 )
-                accumulator.api_requests += 1
-                accumulator.records_requested += response.request.max_results
                 accumulator.raw_payloads += 1
                 self.session.commit()
 
-            response = await self.client.get(request, on_response=preserve)
+            async def count_attempt(
+                _attempt: int, requested_max_results: int = request.max_results
+            ) -> None:
+                if self._request_limit_reached(accumulator):
+                    raise ArxivCollectionError("max_requests_per_run reached during retry")
+                if self._runtime_exceeded(started_monotonic):
+                    raise ArxivCollectionError("max_runtime_minutes reached during retry")
+                accumulator.api_requests += 1
+                accumulator.records_requested += requested_max_results
+
+            response = await self.client.get(
+                request,
+                on_response=preserve,
+                on_attempt=count_attempt,
+            )
             if raw_response is None:
                 raise ArxivCollectionError("arXiv response was not persisted to Raw")
             try:
@@ -509,7 +528,7 @@ class ArxivCollectionService:
             accumulator.counts = accumulator.counts.add(counts)
             accumulator.entries_received += len(feed.articles)
             pages += 1
-            results_seen += len(feed.articles)
+            accumulator.results_by_topic[mapping.topic_id] = topic_results + len(feed.articles)
             advance = max(len(feed.articles), feed.items_per_page)
             if advance == 0:
                 if request.start < feed.total_results:

@@ -330,6 +330,118 @@ def test_large_query_is_partitioned_into_smaller_date_windows(
         assert statuses.count(ArxivCursorStatus.SUCCEEDED) == 2
 
 
+def test_retry_attempts_count_toward_the_run_request_limit(
+    migrated_engine: Engine, tmp_path: Path
+) -> None:
+    calls = 0
+
+    async def transient(
+        _url: str, _headers: Mapping[str, str], _timeout: float
+    ) -> tuple[int, Mapping[str, str], bytes]:
+        nonlocal calls
+        calls += 1
+        return 503, {}, b"temporarily unavailable"
+
+    fake_time = FakeTime()
+    with Session(migrated_engine) as session:
+        configured(session)
+        service = ArxivCollectionService(
+            session,
+            settings(tmp_path, arxiv_max_requests_per_run=1),
+            client=client(fake_time, transient),
+            raw_store=LocalRawStore(tmp_path),
+            now=fake_time.wall,
+            monotonic=fake_time.monotonic,
+        )
+        summary = asyncio.run(
+            service.backfill(
+                topic_slugs=["model-context-protocol"],
+                window_from=datetime(2026, 8, 1, tzinfo=UTC),
+                window_until=datetime(2026, 8, 2, tzinfo=UTC),
+            )
+        )
+
+        assert summary.status == "failed"
+        assert summary.api_requests == 1
+        assert summary.raw_payloads_preserved == 1
+        assert calls == 1
+
+
+def test_result_limit_applies_across_all_windows_for_a_topic(
+    migrated_engine: Engine, tmp_path: Path
+) -> None:
+    calls = 0
+
+    async def one_result(
+        _url: str, _headers: Mapping[str, str], _timeout: float
+    ) -> tuple[int, Mapping[str, str], bytes]:
+        nonlocal calls
+        calls += 1
+        return 200, {}, (FIXTURES / "single_result.xml").read_bytes()
+
+    fake_time = FakeTime()
+    with Session(migrated_engine) as session:
+        configured(session)
+        service = ArxivCollectionService(
+            session,
+            settings(
+                tmp_path,
+                arxiv_backfill_window_days=1,
+                arxiv_max_results_per_topic=1,
+            ),
+            client=client(fake_time, one_result),
+            raw_store=LocalRawStore(tmp_path),
+            now=fake_time.wall,
+            monotonic=fake_time.monotonic,
+        )
+        summary = asyncio.run(
+            service.backfill(
+                topic_slugs=["model-context-protocol"],
+                window_from=datetime(2026, 8, 1, tzinfo=UTC),
+                window_until=datetime(2026, 8, 3, tzinfo=UTC),
+            )
+        )
+
+        assert summary.status == "partial"
+        assert summary.entries_received == 1
+        assert calls == 1
+
+
+def test_runtime_limit_is_checked_between_pages(migrated_engine: Engine, tmp_path: Path) -> None:
+    calls = 0
+    fake_time = FakeTime()
+
+    async def slow_page(
+        _url: str, _headers: Mapping[str, str], _timeout: float
+    ) -> tuple[int, Mapping[str, str], bytes]:
+        nonlocal calls
+        calls += 1
+        fake_time.seconds += 61
+        return 200, {}, (FIXTURES / "pagination_page_1.xml").read_bytes()
+
+    with Session(migrated_engine) as session:
+        configured(session)
+        service = ArxivCollectionService(
+            session,
+            settings(tmp_path, arxiv_max_runtime_minutes=1),
+            client=client(fake_time, slow_page),
+            raw_store=LocalRawStore(tmp_path),
+            now=fake_time.wall,
+            monotonic=fake_time.monotonic,
+        )
+        summary = asyncio.run(
+            service.backfill(
+                topic_slugs=["model-context-protocol"],
+                window_from=datetime(2026, 8, 1, tzinfo=UTC),
+                window_until=datetime(2026, 8, 2, tzinfo=UTC),
+            )
+        )
+
+        assert summary.status == "partial"
+        assert summary.entries_received == 1
+        assert calls == 1
+
+
 def test_backfill_cli_dry_run_is_machine_readable(
     migrated_engine: Engine, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

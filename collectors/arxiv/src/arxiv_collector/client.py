@@ -42,6 +42,7 @@ class Transport(Protocol):
 
 
 ResponseSink = Callable[[ArxivHTTPResponse], Awaitable[None]]
+AttemptSink = Callable[[int], Awaitable[None]]
 MonotonicClock = Callable[[], float]
 Sleep = Callable[[float], Awaitable[None]]
 WallClock = Callable[[], datetime]
@@ -112,9 +113,12 @@ class ArxivClient:
         request: ArxivRequest,
         *,
         on_response: ResponseSink,
+        on_attempt: AttemptSink | None = None,
     ) -> ArxivHTTPResponse:
         async with self._connection_lock:
             for attempt in range(1, self.retry_attempts + 1):
+                if on_attempt is not None:
+                    await on_attempt(attempt)
                 await self._limiter.acquire()
                 started = self._clock()
                 requested_at = self._wall_clock().astimezone(UTC)
