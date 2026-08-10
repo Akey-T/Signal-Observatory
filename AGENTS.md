@@ -26,6 +26,13 @@ These rules apply to the entire repository.
 20. Source-specific mapping logic must not leak into generic Topic models.
 21. Automatic topic discovery must remain separate from curated registry data.
 22. Do not use LLMs to silently alter curated registry entries.
+23. Never display fabricated trend metrics.
+24. Monitoring priority must never be labeled as popularity or trend strength.
+25. A configured source mapping does not mean a collector is live.
+26. Curated topics must not be labeled as trending without observation data.
+27. UI must distinguish registry configuration from observed signals.
+28. Prefer existing read-only APIs over duplicated frontend data.
+29. Do not add UI-only database tables for homepage presentation.
 
 ## Repository boundaries
 
@@ -33,7 +40,7 @@ These rules apply to the entire repository.
 - `packages/collector-core/` owns shared ingestion contracts and Bronze storage.
 - `packages/topic-registry/` owns curated Topic schema, validation, diff, and sync logic.
 - `db/` owns SQLAlchemy models, repositories, and Alembic migrations.
-- `collectors/` is reserved for source-specific collectors; none belong in E00-E02.
+- `collectors/` is reserved for source-specific collectors; none belong in E00-E02.5.
 - `config/topics/` is the administrative source of truth for curated Topics.
 - `data/raw/` is runtime state and must never be edited in place.
 - Gold analytics are interfaces only until their persisted inputs and metric definitions exist.

@@ -2,7 +2,7 @@
 
 Signal Observatory 是一个长期运行的数据工程与趋势研究项目。它保存公开机器接口中的技术生态观测，构建可追溯、可重复计算的历史序列，用于研究技术从 Research → Developer Adoption → Community Attention → Public Attention 的传播过程。
 
-当前仓库完成 **E00 Project Foundation**、**E01 Data Infrastructure** 与 **E02 Topic Registry**。真实数据采集、Trend Score、AI 摘要、自动 topic discovery 和完整 Dashboard 仍不在当前范围内。
+当前仓库完成 **E00 Project Foundation**、**E01 Data Infrastructure**、**E02 Topic Registry** 与 **E02.5 Topic Observatory Experience**。真实数据采集、Trend Score、AI 摘要、自动 topic discovery 和完整 Dashboard 仍不在当前范围内。
 
 ## 已实现
 
@@ -14,6 +14,8 @@ Signal Observatory 是一个长期运行的数据工程与趋势研究项目。�
 - 严格 schema、跨文件唯一性、alias 冲突检测、确定性 checksum
 - 只读 diff、事务 sync、dry-run、版本历史、审计日志与数据质量记录
 - CLI 与只读 Topic API
+- Registry Overview、Topic Explorer 与 Topic Detail 三个只读 Web 入口
+- 动态 Registry Health、确定性 Featured Topics、Category Universe 与未来 Observation slots
 
 ## 快速启动
 
@@ -27,6 +29,14 @@ docker compose up --build
 ```
 
 服务地址：Web <http://localhost:5173>、API <http://localhost:8000>、OpenAPI <http://localhost:8000/docs>。
+
+Web 路由：
+
+- `/`：Registry Overview，动态展示 Registry 统计、3 个跨领域 Featured Topics、30 个 Supporting Topics、Topic Universe 和 Registry Health。
+- `/topics`：Topic Explorer，支持 Topic/Alias 搜索、Category/Status/Source 筛选、URL query state 和分页。
+- `/topics/:slug`：Topic Detail，展示 Canonical Topic、Aliases、Monitoring Priority、可读 Source Mapping 和未来 Observation slots。
+
+当前 Web 是 **Registry-only** 体验。`Configured` 只表示 Registry 中存在 Source Mapping，不表示 Collector 已启用；页面不会展示没有持久化 Observation 支撑的 Trend、Growth、Momentum 或 Popularity。
 
 ## Topic Registry
 

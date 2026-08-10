@@ -19,7 +19,7 @@ flowchart LR
     API --> UI["React UI"]
 ```
 
-E00-E02 implement the platform through Silver, add the curated Topic Registry, and define the Gold boundary. Real source collection, aggregations, and trend algorithms remain deliberately absent.
+E00-E02 implement the platform through Silver, add the curated Topic Registry, and define the Gold boundary. E02.5 adds a read-only Topic Observatory Experience over the existing API. Real source collection, aggregations, and trend algorithms remain deliberately absent.
 
 ## Topic Registry control plane
 
@@ -49,10 +49,12 @@ constructs requests.
 | API           | Health/readiness and read-only Topic query surface | None                        |
 | Worker        | Graceful long-running collector host               | None until collectors exist |
 | PostgreSQL    | Silver entities and ingestion lifecycle            | Alembic-managed tables      |
-| Web           | Minimal platform status surface                    | None                        |
+| Web           | Read-only Registry overview, explorer, and detail  | None                        |
 | LocalRawStore | Atomic Bronze publication and verification         | `data/raw/`                 |
 
 Docker Compose orders startup as PostgreSQL healthy → API migrated/healthy → Worker and Web. The API validates its configuration, retries database startup connectivity, and disposes its engine during graceful shutdown. The worker exposes health through a readiness file that exists only while its database-validated event loop is running.
+
+The Web UI consumes only the read-only Topic API. Featured topics are selected deterministically from active topics using editorial monitoring priority and top-level category diversity; the selection is a presentation rule, not persisted business state. Configured source mappings are displayed separately from future observation slots so the UI cannot imply that a collector is live before persisted observations exist.
 
 ## Bronze invariants
 

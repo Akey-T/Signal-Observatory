@@ -4,7 +4,7 @@
 
 The Topic Registry defines the stable subjects that Signal Observatory may monitor. Human-reviewed YAML under `config/topics/` is authoritative. Keywords discovered in observations may become review candidates, but never become canonical topics automatically.
 
-The initial registry contains 100 topics in five domains, 15 hierarchical categories, curated aliases, and explicit mappings for arXiv, GitHub, Hacker News, and Wikipedia. A mapping is configuration only; E02 performs no external request.
+The initial registry contains more than 100 curated topics in five domains, with hierarchical categories, reviewed aliases, and explicit mappings for arXiv, GitHub, Hacker News, and Wikipedia. Runtime counts come from `GET /api/topic-registry/status`. A mapping is configuration only; E02 performs no external request.
 
 ## File schema
 

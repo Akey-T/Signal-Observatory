@@ -10,4 +10,4 @@ COPY apps/web ./apps/web
 
 EXPOSE 5173
 
-CMD ["npm", "run", "dev:web", "--", "--host", "0.0.0.0"]
+CMD ["npm", "run", "dev:web"]
