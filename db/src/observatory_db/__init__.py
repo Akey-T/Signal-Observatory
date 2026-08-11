@@ -12,6 +12,14 @@ from observatory_db.arxiv_models import (
     ArxivTopicMatch,
 )
 from observatory_db.base import Base
+from observatory_db.github_models import (
+    GithubDiscoveryState,
+    GithubRawResponse,
+    GithubRepository,
+    GithubRepositoryPollState,
+    GithubRepositorySnapshot,
+    GithubTopicRepositoryMatch,
+)
 from observatory_db.models import (
     DataQualityCheck,
     IngestionError,
@@ -37,6 +45,12 @@ __all__ = [
     "ArxivRawResponse",
     "ArxivTopicMatch",
     "DataQualityCheck",
+    "GithubDiscoveryState",
+    "GithubRawResponse",
+    "GithubRepository",
+    "GithubRepositoryPollState",
+    "GithubRepositorySnapshot",
+    "GithubTopicRepositoryMatch",
     "IngestionError",
     "IngestionRun",
     "Source",
