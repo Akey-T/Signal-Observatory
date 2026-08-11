@@ -169,6 +169,24 @@ describe("Overview", () => {
     expect(await screen.findByText("GitHub · Live")).toBeInTheDocument();
     expect(screen.getByText("Developer collector")).toBeInTheDocument();
   });
+
+  it("reports persisted Research history as degraded after a partial run", async () => {
+    mockedGetArxivStatus.mockResolvedValue({
+      ...arxivStatus,
+      collector_state: "degraded",
+      last_run_at: "2026-08-11T05:00:00Z",
+      last_successful_run_at: "2026-08-10T06:30:00Z",
+      last_run_status: "partial",
+    });
+    renderApp("/");
+
+    expect(await screen.findByText("arXiv · Degraded")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Topic Registry ready · Research collector degraded · Developer collector not live",
+      ),
+    ).toBeInTheDocument();
+  });
 });
 
 describe("Topic Explorer", () => {

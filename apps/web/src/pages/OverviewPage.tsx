@@ -31,8 +31,14 @@ export function OverviewPage() {
   const researchLive =
     arxiv.data?.collector_state === "healthy" &&
     arxiv.data.last_successful_run_at !== null;
+  const researchDegraded =
+    arxiv.data?.collector_state === "degraded" &&
+    arxiv.data.last_successful_run_at !== null;
   const developerLive =
     github.data?.collector_state === "healthy" &&
+    github.data.last_successful_snapshot_at !== null;
+  const developerDegraded =
+    github.data?.collector_state === "degraded" &&
     github.data.last_successful_snapshot_at !== null;
   const retry = () => {
     registry.retry();
@@ -60,8 +66,17 @@ export function OverviewPage() {
           <div className="truth-note">
             <span aria-hidden="true" />
             Topic Registry ready · Research collector{" "}
-            {researchLive ? "live" : "not live"} · Developer collector{" "}
-            {developerLive ? "live" : "not live"}
+            {researchLive
+              ? "live"
+              : researchDegraded
+                ? "degraded"
+                : "not live"}{" "}
+            · Developer collector{" "}
+            {developerLive
+              ? "live"
+              : developerDegraded
+                ? "degraded"
+                : "not live"}
           </div>
         </div>
 
@@ -78,11 +93,15 @@ export function OverviewPage() {
                 {stage === "Research"
                   ? researchLive
                     ? "arXiv · Live"
-                    : "arXiv · Not live"
+                    : researchDegraded
+                      ? "arXiv · Degraded"
+                      : "arXiv · Not live"
                   : stage === "Developer"
                     ? developerLive
                       ? "GitHub · Live"
-                      : "GitHub · Not live"
+                      : developerDegraded
+                        ? "GitHub · Degraded"
+                        : "GitHub · Not live"
                     : "Configured / ready"}
               </small>
             </div>
