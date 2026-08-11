@@ -1,0 +1,28 @@
+{
+  "total_count": 2,
+  "incomplete_results": false,
+  "items": [
+    {
+      "id": 1002,
+      "node_id": "R_kgDOExample2",
+      "name": "python-sdk",
+      "full_name": "modelcontextprotocol/python-sdk",
+      "owner": { "login": "modelcontextprotocol" },
+      "html_url": "https://github.com/modelcontextprotocol/python-sdk",
+      "url": "https://api.github.com/repos/modelcontextprotocol/python-sdk",
+      "description": "MCP Python SDK",
+      "fork": false,
+      "created_at": "2024-12-01T00:00:00Z",
+      "updated_at": "2026-08-10T08:00:00Z",
+      "pushed_at": "2026-08-10T07:00:00Z",
+      "size": 2200,
+      "stargazers_count": 5000,
+      "forks_count": 500,
+      "open_issues_count": 50,
+      "archived": false,
+      "disabled": false,
+      "visibility": "public",
+      "topics": []
+    }
+  ]
+}

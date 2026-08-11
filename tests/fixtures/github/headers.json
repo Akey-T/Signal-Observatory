@@ -1,0 +1,25 @@
+{
+  "search_page_1": {
+    "ETag": "\"search-v1\"",
+    "Link": "<https://api.github.com/search/repositories?q=mcp&page=2>; rel=\"next\"",
+    "X-RateLimit-Limit": "30",
+    "X-RateLimit-Remaining": "29",
+    "X-RateLimit-Reset": "1786424400",
+    "X-RateLimit-Resource": "search"
+  },
+  "repository": {
+    "ETag": "\"repo-v1\"",
+    "Last-Modified": "Mon, 10 Aug 2026 10:00:00 GMT",
+    "X-RateLimit-Limit": "5000",
+    "X-RateLimit-Remaining": "4999",
+    "X-RateLimit-Reset": "1786424400",
+    "X-RateLimit-Resource": "core"
+  },
+  "secondary": {
+    "Retry-After": "60",
+    "X-RateLimit-Limit": "5000",
+    "X-RateLimit-Remaining": "4990",
+    "X-RateLimit-Reset": "1786424400",
+    "X-RateLimit-Resource": "core"
+  }
+}

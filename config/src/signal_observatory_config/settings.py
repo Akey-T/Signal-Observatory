@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AliasChoices, Field, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -91,6 +91,113 @@ class Settings(BaseSettings):
         min_length=10,
         max_length=500,
     )
+    github_token: SecretStr | None = Field(
+        default=None,
+        repr=False,
+        validation_alias=AliasChoices("GITHUB_TOKEN", "SIGNAL_GITHUB_TOKEN"),
+    )
+    github_api_base_url: str = Field(
+        default="https://api.github.com",
+        validation_alias=AliasChoices("GITHUB_API_BASE_URL", "SIGNAL_GITHUB_API_BASE_URL"),
+    )
+    github_api_version: str = Field(
+        default="2022-11-28",
+        validation_alias=AliasChoices("GITHUB_API_VERSION", "SIGNAL_GITHUB_API_VERSION"),
+    )
+    github_require_auth: bool = Field(
+        default=True,
+        validation_alias=AliasChoices("GITHUB_REQUIRE_AUTH", "SIGNAL_GITHUB_REQUIRE_AUTH"),
+    )
+    github_allow_anonymous_smoke: bool = Field(
+        default=False,
+        validation_alias=AliasChoices(
+            "GITHUB_ALLOW_ANONYMOUS_SMOKE", "SIGNAL_GITHUB_ALLOW_ANONYMOUS_SMOKE"
+        ),
+    )
+    github_request_timeout_seconds: float = Field(
+        default=30.0,
+        gt=0,
+        le=300,
+        validation_alias=AliasChoices(
+            "GITHUB_REQUEST_TIMEOUT_SECONDS", "SIGNAL_GITHUB_REQUEST_TIMEOUT_SECONDS"
+        ),
+    )
+    github_request_concurrency: int = Field(
+        default=1,
+        ge=1,
+        le=4,
+        validation_alias=AliasChoices(
+            "GITHUB_REQUEST_CONCURRENCY", "SIGNAL_GITHUB_REQUEST_CONCURRENCY"
+        ),
+    )
+    github_discovery_page_size: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+        validation_alias=AliasChoices(
+            "GITHUB_DISCOVERY_PAGE_SIZE", "SIGNAL_GITHUB_DISCOVERY_PAGE_SIZE"
+        ),
+    )
+    github_discovery_max_results_per_mapping: int = Field(
+        default=20,
+        ge=1,
+        le=1000,
+        validation_alias=AliasChoices(
+            "GITHUB_DISCOVERY_MAX_RESULTS_PER_MAPPING",
+            "SIGNAL_GITHUB_DISCOVERY_MAX_RESULTS_PER_MAPPING",
+        ),
+    )
+    github_max_requests_per_run: int = Field(
+        default=100,
+        ge=1,
+        le=5000,
+        validation_alias=AliasChoices(
+            "GITHUB_MAX_REQUESTS_PER_RUN", "SIGNAL_GITHUB_MAX_REQUESTS_PER_RUN"
+        ),
+    )
+    github_min_core_remaining: int = Field(
+        default=100,
+        ge=0,
+        validation_alias=AliasChoices(
+            "GITHUB_MIN_CORE_REMAINING", "SIGNAL_GITHUB_MIN_CORE_REMAINING"
+        ),
+    )
+    github_min_search_remaining: int = Field(
+        default=2,
+        ge=0,
+        validation_alias=AliasChoices(
+            "GITHUB_MIN_SEARCH_REMAINING", "SIGNAL_GITHUB_MIN_SEARCH_REMAINING"
+        ),
+    )
+    github_snapshot_schedule: str = Field(
+        default="30 2 * * *",
+        validation_alias=AliasChoices(
+            "GITHUB_SNAPSHOT_SCHEDULE", "SIGNAL_GITHUB_SNAPSHOT_SCHEDULE"
+        ),
+    )
+    github_discovery_schedule: str = Field(
+        default="0 3 * * 0",
+        validation_alias=AliasChoices(
+            "GITHUB_DISCOVERY_SCHEDULE", "SIGNAL_GITHUB_DISCOVERY_SCHEDULE"
+        ),
+    )
+    github_conditional_requests_enabled: bool = Field(
+        default=True,
+        validation_alias=AliasChoices(
+            "GITHUB_CONDITIONAL_REQUESTS_ENABLED",
+            "SIGNAL_GITHUB_CONDITIONAL_REQUESTS_ENABLED",
+        ),
+    )
+    github_retry_attempts: int = Field(default=3, ge=1, le=5)
+    github_max_runtime_minutes: int = Field(default=30, ge=1, le=1440)
+    github_track_forks: bool = Field(default=False)
+    github_snapshot_due_hours: int = Field(default=20, ge=1, le=168)
+    github_discovery_due_days: int = Field(default=7, ge=1, le=90)
+    github_user_agent: str = Field(
+        default="Signal-Observatory/0.1.0 (+https://github.com/Akey-T/Signal-Observatory)",
+        min_length=10,
+        max_length=500,
+    )
 
     @field_validator("database_url")
     @classmethod
@@ -110,6 +217,8 @@ class Settings(BaseSettings):
             "raw_data_path": str(self.raw_data_path),
             "arxiv_api_host": self.arxiv_api_base_url.split("/", maxsplit=3)[2],
             "arxiv_min_request_interval_seconds": str(self.arxiv_min_request_interval_seconds),
+            "github_api_host": self.github_api_base_url.split("/", maxsplit=3)[2],
+            "github_auth_configured": str(self.github_token is not None).lower(),
         }
 
 

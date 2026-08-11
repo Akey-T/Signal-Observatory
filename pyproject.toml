@@ -46,6 +46,7 @@ where = [
   "packages/entity-resolution/src",
   "packages/topic-registry/src",
   "collectors/arxiv/src",
+  "collectors/github/src",
   "config/src",
   "db/src",
 ]
@@ -69,6 +70,7 @@ src = [
   "packages/entity-resolution/src",
   "packages/topic-registry/src",
   "collectors/arxiv/src",
+  "collectors/github/src",
   "config/src",
   "db/src",
   "tests",
@@ -92,6 +94,7 @@ mypy_path = [
   "packages/entity-resolution/src",
   "packages/topic-registry/src",
   "collectors/arxiv/src",
+  "collectors/github/src",
   "config/src",
   "db/src",
 ]
