@@ -12,6 +12,7 @@ from observatory_db.arxiv_models import (
     ArxivTopicMatch,
 )
 from observatory_db.base import Base
+from observatory_db.coverage_models import CoverageStatus, CoverageStrategy, TopicSourceCoverage
 from observatory_db.github_models import (
     GithubDiscoveryState,
     GithubRawResponse,
@@ -45,6 +46,8 @@ __all__ = [
     "ArxivRawResponse",
     "ArxivTopicMatch",
     "DataQualityCheck",
+    "CoverageStatus",
+    "CoverageStrategy",
     "GithubDiscoveryState",
     "GithubRawResponse",
     "GithubRepository",
@@ -60,4 +63,5 @@ __all__ = [
     "TopicRegistryAuditLog",
     "TopicRegistryVersion",
     "TopicSourceMapping",
+    "TopicSourceCoverage",
 ]

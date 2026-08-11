@@ -6,7 +6,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AliasChoices, Field, SecretStr, field_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -91,6 +91,8 @@ class Settings(BaseSettings):
         min_length=10,
         max_length=500,
     )
+    arxiv_freshness_fresh_hours: int = Field(default=36, ge=1, le=720)
+    arxiv_freshness_very_stale_hours: int = Field(default=72, ge=2, le=1440)
     github_token: SecretStr | None = Field(
         default=None,
         repr=False,
@@ -198,6 +200,8 @@ class Settings(BaseSettings):
         min_length=10,
         max_length=500,
     )
+    github_freshness_fresh_hours: int = Field(default=36, ge=1, le=720)
+    github_freshness_very_stale_hours: int = Field(default=72, ge=2, le=1440)
 
     @field_validator("database_url")
     @classmethod
@@ -215,6 +219,14 @@ class Settings(BaseSettings):
         if isinstance(value, str) and not value.strip():
             return None
         return value
+
+    @model_validator(mode="after")
+    def validate_freshness_thresholds(self) -> Settings:
+        if self.arxiv_freshness_very_stale_hours <= self.arxiv_freshness_fresh_hours:
+            raise ValueError("arXiv very-stale threshold must exceed the fresh threshold")
+        if self.github_freshness_very_stale_hours <= self.github_freshness_fresh_hours:
+            raise ValueError("GitHub very-stale threshold must exceed the fresh threshold")
+        return self
 
     def public_summary(self) -> dict[str, str]:
         """Return startup-safe values without credentials or other secrets."""

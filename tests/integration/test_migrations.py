@@ -37,6 +37,7 @@ def test_migration_upgrade_and_downgrade(tmp_path: Path) -> None:
         "topic_registry_audit_log",
         "topic_registry_versions",
         "topic_source_mappings",
+        "topic_source_coverage",
         "topics",
     }
 

@@ -207,7 +207,7 @@ class ArxivCollectionService:
             )
 
         source = self._arxiv_source()
-        run = self._start_run(source, "backfill", accumulator, start, end)
+        run = self._start_run(source, "backfill", accumulator, start, end, trigger="manual")
         started_monotonic = self._monotonic()
         forbidden = False
         for mapping in mappings:
@@ -278,6 +278,7 @@ class ArxivCollectionService:
         topic_slugs: Sequence[str] | None = None,
         page_size: int | None = None,
         max_pages: int | None = None,
+        trigger: Literal["manual", "scheduled"] = "manual",
     ) -> ArxivRunSummary:
         mappings = self._enabled_mappings(topic_slugs)
         observed_until = self._now()
@@ -292,6 +293,7 @@ class ArxivCollectionService:
             accumulator,
             observed_until - timedelta(hours=self.settings.arxiv_incremental_overlap_hours),
             observed_until,
+            trigger=trigger,
         )
         started_monotonic = self._monotonic()
         for mapping in mappings:
@@ -609,6 +611,8 @@ class ArxivCollectionService:
         accumulator: RunAccumulator,
         window_from: datetime,
         window_until: datetime,
+        *,
+        trigger: Literal["manual", "scheduled"],
     ) -> IngestionRun:
         run = IngestionRun(
             source=source,
@@ -620,6 +624,7 @@ class ArxivCollectionService:
             },
             metadata_={
                 "mode": mode,
+                "trigger": trigger,
                 "schema_version": RAW_SCHEMA_VERSION,
                 "minimum_request_interval_seconds": (
                     self.settings.arxiv_min_request_interval_seconds

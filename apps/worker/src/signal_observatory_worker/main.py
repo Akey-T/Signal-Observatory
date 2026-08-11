@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from arxiv_collector import ArxivCollectionService
 from github_collector import GithubCollectionService
 from observatory_db.session import create_database_engine, wait_for_database
+from observatory_operations import CoverageDeriver
 from signal_observatory_api.logging import configure_logging
 from signal_observatory_config import Settings, get_settings
 
@@ -122,7 +123,8 @@ async def scheduler_host(
 
     async def collect_arxiv() -> None:
         with Session(engine) as session:
-            summary = await ArxivCollectionService(session, settings).collect()
+            summary = await ArxivCollectionService(session, settings).collect(trigger="scheduled")
+            CoverageDeriver(session).rebuild()
         logger.info(
             "arxiv_scheduled_collection_finished",
             run_id=str(summary.run_id),
@@ -134,6 +136,7 @@ async def scheduler_host(
     async def snapshot_github() -> None:
         with Session(engine) as session:
             summary = await GithubCollectionService(session, settings).snapshot()
+            CoverageDeriver(session).rebuild()
         logger.info(
             "github_scheduled_snapshot_finished",
             run_id=str(summary.run_id),
@@ -145,6 +148,7 @@ async def scheduler_host(
     async def discover_github() -> None:
         with Session(engine) as session:
             summary = await GithubCollectionService(session, settings).discover()
+            CoverageDeriver(session).rebuild()
         logger.info(
             "github_scheduled_discovery_finished",
             run_id=str(summary.run_id),

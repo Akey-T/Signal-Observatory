@@ -20,3 +20,12 @@ def test_blank_github_token_is_not_reported_as_configured() -> None:
 def test_configuration_rejects_unsupported_database_driver() -> None:
     with pytest.raises(ValidationError, match="psycopg PostgreSQL or SQLite"):
         Settings(database_url="mysql://localhost/example")
+
+
+def test_configuration_requires_ordered_freshness_thresholds() -> None:
+    with pytest.raises(ValidationError, match="very-stale threshold"):
+        Settings(
+            _env_file=None,
+            arxiv_freshness_fresh_hours=72,
+            arxiv_freshness_very_stale_hours=36,
+        )

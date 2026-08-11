@@ -8,9 +8,12 @@ import json
 from collections.abc import Callable
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Annotated, NoReturn
+from typing import Annotated, Any, NoReturn
 
 import typer
+from alembic.config import Config
+from alembic.runtime.migration import MigrationContext
+from alembic.script import ScriptDirectory
 from pydantic import ValidationError
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -27,8 +30,17 @@ from github_collector import (
     GithubQueryService,
     GithubRunSummary,
 )
+from observatory_db.coverage_models import CoverageStatus
 from observatory_db.models import Topic, TopicStatus
 from observatory_db.session import create_database_engine
+from observatory_operations import (
+    ArxivSoakVerifier,
+    CoverageDeriver,
+    CoverageQueryService,
+    GithubCrossDayVerifier,
+    OperationsService,
+    RawIntegrityVerifier,
+)
 from signal_observatory_config import Settings
 from topic_registry.diff import RegistryDiff
 from topic_registry.loader import TopicRegistryLoader, TopicRegistryValidationError
@@ -45,9 +57,13 @@ app = typer.Typer(help="Signal Observatory operational commands.", no_args_is_he
 topics_app = typer.Typer(help="Validate, synchronize, and inspect the curated Topic Registry.")
 arxiv_app = typer.Typer(help="Collect and inspect official arXiv metadata.")
 github_app = typer.Typer(help="Discover and snapshot public GitHub repositories.")
+coverage_app = typer.Typer(help="Rebuild and inspect deterministic data coverage.")
+ops_app = typer.Typer(help="Inspect operational health and immutable Raw integrity.")
 app.add_typer(topics_app, name="topics")
 app.add_typer(arxiv_app, name="arxiv")
 app.add_typer(github_app, name="github")
+app.add_typer(coverage_app, name="coverage")
+app.add_typer(ops_app, name="ops")
 
 
 def _emit(payload: object, *, as_json: bool) -> None:
@@ -213,7 +229,7 @@ def list_topics(
 ) -> None:
     """List synchronized topics with optional filters."""
 
-    def operation(session: Session) -> dict[str, object]:
+    def operation(session: Session) -> dict[str, Any]:
         records, total = TopicQueryService(session).list_topics(
             category=category, status=status, search=search, limit=limit, offset=offset
         )
@@ -327,7 +343,7 @@ def arxiv_backfill(
     def operation(session: Session) -> ArxivRunSummary:
         settings = Settings()
         service = ArxivCollectionService(session, settings)
-        return asyncio.run(
+        summary = asyncio.run(
             service.backfill(
                 topic_slugs=topics if not all_active else None,
                 window_from=service.date_start(first_day),
@@ -337,6 +353,9 @@ def arxiv_backfill(
                 page_size=page_size,
             )
         )
+        if not dry_run:
+            CoverageDeriver(session).rebuild()
+        return summary
 
     try:
         summary = _with_session(as_json, operation)
@@ -355,13 +374,15 @@ def arxiv_collect(
     """Run one resumable incremental collection for enabled arXiv mappings."""
 
     def operation(session: Session) -> ArxivRunSummary:
-        return asyncio.run(
+        summary = asyncio.run(
             ArxivCollectionService(session, Settings()).collect(
                 topic_slugs=topics,
                 max_pages=max_pages,
                 page_size=page_size,
             )
         )
+        CoverageDeriver(session).rebuild()
+        return summary
 
     try:
         summary = _with_session(as_json, operation)
@@ -475,7 +496,7 @@ def github_discover(
         )
 
     def operation(session: Session) -> GithubRunSummary:
-        return asyncio.run(
+        summary = asyncio.run(
             GithubCollectionService(session, Settings()).discover(
                 topic_slugs=topics if not all_active else None,
                 dry_run=dry_run,
@@ -483,6 +504,9 @@ def github_discover(
                 max_requests=max_requests,
             )
         )
+        if not dry_run:
+            CoverageDeriver(session).rebuild()
+        return summary
 
     try:
         summary = _with_session(as_json, operation)
@@ -511,7 +535,7 @@ def github_snapshot(
         )
 
     def operation(session: Session) -> GithubRunSummary:
-        return asyncio.run(
+        summary = asyncio.run(
             GithubCollectionService(session, Settings()).snapshot(
                 topic_slugs=topics,
                 repository_ids=repositories,
@@ -519,6 +543,9 @@ def github_snapshot(
                 max_requests=max_requests,
             )
         )
+        if not dry_run:
+            CoverageDeriver(session).rebuild()
+        return summary
 
     try:
         summary = _with_session(as_json, operation)
@@ -571,6 +598,261 @@ def github_sample(
     except GithubCollectionError as error:
         _github_error(error, as_json=as_json)
     _emit(payload, as_json=as_json)
+
+
+@coverage_app.command("rebuild")
+def coverage_rebuild(
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Rebuild the Topic-by-Source projection from persisted facts."""
+
+    payload: dict[str, object] = _with_session(
+        as_json, lambda session: CoverageDeriver(session).rebuild()
+    )
+    if as_json:
+        _emit(payload, as_json=True)
+        return
+    _emit(
+        "Coverage projection rebuilt\n"
+        f"Version: {payload['derivation_version']}\n"
+        f"Projections: {payload['projections']}\n"
+        f"Created/updated/unchanged/deleted: "
+        f"{payload['created']}/{payload['updated']}/{payload['unchanged']}/{payload['deleted']}",
+        as_json=False,
+    )
+
+
+@coverage_app.command("list")
+def coverage_list(
+    source: Annotated[str | None, typer.Option("--source")] = None,
+    status: Annotated[CoverageStatus | None, typer.Option("--status")] = None,
+    topic: Annotated[str | None, typer.Option("--topic")] = None,
+    stale: Annotated[bool | None, typer.Option("--stale/--not-stale")] = None,
+    limit: Annotated[int, typer.Option("--limit", min=1, max=1000)] = 100,
+    offset: Annotated[int, typer.Option("--offset", min=0)] = 0,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """List persisted coverage projections with deterministic filters."""
+
+    payload: dict[str, object] = _with_session(
+        as_json,
+        lambda session: CoverageQueryService(session, Settings()).list(
+            source=source,
+            status=status,
+            topic=topic,
+            stale=stale,
+            limit=limit,
+            offset=offset,
+        ),
+    )
+    if as_json:
+        _emit(payload, as_json=True)
+        return
+    items = payload["items"]
+    assert isinstance(items, list)
+    lines = [f"Coverage Ledger · {payload['total']} result(s)"]
+    for item in items:
+        assert isinstance(item, dict)
+        topic_value = item["topic"]
+        assert isinstance(topic_value, dict)
+        lines.append(
+            f"{topic_value['canonical_name']} · {item['source']} · "
+            f"{str(item['coverage_status']).upper()} · "
+            f"{item['coverage_start'] or '—'} -> {item['coverage_end'] or '—'}"
+        )
+    _emit("\n".join(lines), as_json=False)
+
+
+@coverage_app.command("show")
+def coverage_show(
+    topic: Annotated[str, typer.Option("--topic")],
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Explain all channel coverage for one canonical Topic."""
+
+    payload = _with_session(
+        as_json, lambda session: CoverageQueryService(session, Settings()).topic(topic)
+    )
+    if payload is None:
+        _fail(f"topic not found: {topic}", code=EXIT_VALIDATION, as_json=as_json)
+    if as_json:
+        _emit(payload, as_json=True)
+        return
+    lines = [str(payload["topic"]["canonical_name"]), ""]
+    for channel in payload["channels"]:
+        coverage = channel["coverage"]
+        lines.append(f"{channel['label']} / {channel['source']}")
+        if coverage is None:
+            lines.extend(["Collection: NOT STARTED", ""])
+            continue
+        lines.extend(
+            [
+                f"Status: {str(coverage['coverage_status']).upper()}",
+                f"Coverage: {coverage['coverage_start'] or '—'} -> "
+                f"{coverage['coverage_end'] or '—'}",
+                f"Observations: {coverage['observation_count']}",
+                f"Latest successful run: {coverage['last_successful_run_at'] or '—'}",
+                f"Reason: {coverage['partial_reason'] or '—'}",
+                "",
+            ]
+        )
+    _emit("\n".join(lines), as_json=False)
+
+
+@ops_app.command("verify-raw")
+def verify_raw(
+    sample: Annotated[int, typer.Option("--sample", min=1, max=10000)] = 100,
+    source: Annotated[str | None, typer.Option("--source")] = None,
+    full: Annotated[bool, typer.Option("--full")] = False,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Verify a bounded Raw sample, or the full lake when explicitly requested."""
+
+    try:
+        payload: dict[str, object] = _with_session(
+            as_json,
+            lambda session: RawIntegrityVerifier(session, Settings().raw_data_path).verify(
+                sample=sample, source=source, full=full
+            ),
+        )
+    except ValueError as error:
+        _fail(str(error), code=EXIT_VALIDATION, as_json=as_json)
+    if as_json:
+        _emit(payload, as_json=True)
+    else:
+        _emit(
+            "Raw Integrity\n"
+            f"State: {str(payload['state']).upper()}\n"
+            f"Mode: {payload['mode']}\n"
+            f"Available/checked: {payload['records_available']}/{payload['records_checked']}\n"
+            f"Failures: {payload['failures']}\n"
+            "No data was modified.",
+            as_json=False,
+        )
+    if payload["state"] == "fail":
+        raise typer.Exit(2)
+
+
+@ops_app.command("check")
+def operations_check(
+    raw_sample: Annotated[int, typer.Option("--raw-sample", min=1, max=10000)] = 100,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Run the central read-only operational check with documented exit codes."""
+
+    def operation(session: Session) -> dict[str, object]:
+        settings = Settings()
+        overview = OperationsService(session, settings).overview()
+        raw = RawIntegrityVerifier(session, settings.raw_data_path).verify(sample=raw_sample)
+        migration = MigrationContext.configure(session.connection()).get_current_revision()
+        head = ScriptDirectory.from_config(Config("alembic.ini")).get_current_head()
+        overall = str(overview["overall_state"])
+        if raw["state"] == "fail" or migration != head:
+            overall = "failed"
+        exit_code = 0 if overall == "healthy" else 1 if overall == "degraded" else 2
+        return {
+            **overview,
+            "overall_state": overall,
+            "raw_integrity": raw,
+            "database_migration": {
+                "state": "current" if migration == head else "outdated",
+                "current": migration,
+                "head": head,
+            },
+            "exit_code": exit_code,
+        }
+
+    payload: dict[str, Any] = _with_session(as_json, operation)
+    if as_json:
+        _emit(payload, as_json=True)
+    else:
+        lines = ["Signal Observatory Operational Check", ""]
+        registry = payload["registry"]
+        lines.extend(["Registry", str(registry["state"]).upper(), ""])
+        for source_health in payload["sources"]:
+            label = f"{source_health['label']} / {source_health['display_name']}"
+            state = (
+                "NOT COLLECTING"
+                if not source_health["implemented"]
+                else str(source_health["collector_state"]).upper()
+            )
+            lines.extend([label, state, ""])
+        lines.extend(
+            [
+                "Raw integrity",
+                str(payload["raw_integrity"]["state"]).upper(),
+                "",
+                "Database migration",
+                str(payload["database_migration"]["state"]).upper(),
+                "",
+                "Overall",
+                str(payload["overall_state"]).upper(),
+            ]
+        )
+        _emit("\n".join(lines), as_json=False)
+    exit_code = int(payload["exit_code"])
+    if exit_code:
+        raise typer.Exit(exit_code)
+
+
+@github_app.command("verify-cross-day")
+def github_verify_cross_day(
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Verify existing real cross-day Snapshots without triggering collection."""
+
+    payload: dict[str, Any] = _with_session(
+        as_json,
+        lambda session: GithubCrossDayVerifier(session, Settings()).verify(),
+    )
+    if as_json:
+        _emit(payload, as_json=True)
+    else:
+        _emit(
+            "GitHub Cross-day Verification\n"
+            f"Status: {str(payload['status']).upper()}\n"
+            f"Observation dates: {payload['observation_date_count']}\n"
+            f"Repositories across dates: {payload['repositories_with_multiple_dates']}\n"
+            f"Changed/unchanged transitions: "
+            f"{payload['changed_transitions']}/{payload['unchanged_transitions']}\n"
+            f"{payload['message']}",
+            as_json=False,
+        )
+    exit_code = int(payload["exit_code"])
+    if exit_code:
+        raise typer.Exit(exit_code)
+
+
+@arxiv_app.command("verify-soak")
+def arxiv_verify_soak(
+    days: Annotated[int, typer.Option("--days", min=1, max=90)] = 7,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Verify elapsed scheduler windows without triggering arXiv collection."""
+
+    payload: dict[str, Any] = _with_session(
+        as_json,
+        lambda session: ArxivSoakVerifier(session, Settings()).verify(days=days),
+    )
+    if as_json:
+        _emit(payload, as_json=True)
+    else:
+        _emit(
+            "arXiv Scheduler Soak Verification\n"
+            f"Status: {str(payload['status']).upper()}\n"
+            f"Scheduled runs: {payload['actual_scheduled_runs']}/"
+            f"{payload['expected_scheduled_windows']}\n"
+            f"Succeeded/partial/failed: "
+            f"{payload['successful']}/{payload['partial']}/{payload['failed']}\n"
+            f"Missing/duplicates/anomalies: "
+            f"{payload['missing']}/{payload['duplicate_scheduling']}/"
+            f"{payload['cursor_anomalies']}\n"
+            f"{payload['message']}",
+            as_json=False,
+        )
+    exit_code = int(payload["exit_code"])
+    if exit_code:
+        raise typer.Exit(exit_code)
 
 
 def main() -> None:
