@@ -1,141 +1,175 @@
 # E04 GitHub Developer Collector Acceptance
 
-Acceptance date: Pending
-Result: **Not yet accepted — authenticated Pilot and forward-time evidence outstanding**
+Evidence date: 2026-08-11 UTC
+
+Result: **Not yet accepted — second real UTC-day Snapshot outstanding**
+
+The authenticated discovery Pilot, manual mapping review, baseline Snapshot, same-day idempotency,
+real API output, and browser rendering have passed. Final acceptance remains deliberately open
+until a normal poll produces a second persisted observation date.
 
 ## Implementation
 
-E04 implements the code path:
+E04 implements the following path:
 
 ```text
 Curated Topic
-  → enabled explicit GitHub mapping
-  → bounded official Repository Search
-  → immutable Raw HTTP response
-  → numeric Repository identity
-  → explainable many-to-many Topic match
-  → daily ETag Repository poll
-  → immutable forward-only Snapshot
-  → read-only Developer API
-  → truthful Developer Web surface
+  -> enabled explicit GitHub mapping
+  -> bounded official Repository Search
+  -> immutable Raw HTTP response
+  -> numeric Repository identity
+  -> explainable many-to-many Topic match
+  -> daily ETag Repository poll
+  -> immutable forward-only Snapshot
+  -> read-only Developer API
+  -> truthful Developer Web surface
 ```
 
-The client is authenticated by default, follows redirects and official Link pagination, separates
-Search/Core budgets, honors Retry-After/reset, applies bounded secondary-limit backoff, and never
-stores or emits the token. Missing auth yields `not_configured`; no anonymous high-volume fallback
-occurs. Discovery and Snapshot orchestration are separate and reuse the shared RawStore and
-ingestion lifecycle.
+The authenticated client follows official `Link` pagination, separates Search and Core budgets,
+honors `Retry-After` and reset timestamps, applies bounded secondary-limit backoff, and never stores
+or emits the token. Missing auth yields `not_configured`; there is no anonymous high-volume
+fallback. Discovery and Snapshot orchestration remain separate and reuse shared Raw storage and
+ingestion lifecycles.
 
 ## Schema
 
 Migration `20260811_0004_github_developer_collector.py` adds:
 
-| Table                             | Purpose                                                  |
-| --------------------------------- | -------------------------------------------------------- |
-| `github_repositories`             | Numeric external identity and mutable current metadata   |
-| `github_raw_responses`            | Safe relational pointer to immutable Raw HTTP evidence   |
-| `github_repository_snapshots`     | Immutable Repository state per UTC observation date      |
-| `github_topic_repository_matches` | Mapping/query/rank/run explainability and tracking state |
-| `github_repository_poll_states`   | ETag and safe last-poll state                            |
-| `github_discovery_states`         | Per-mapping discovery checkpoint/status                  |
+| Table                             | Purpose                                                |
+| --------------------------------- | ------------------------------------------------------ |
+| `github_repositories`             | Numeric external identity and mutable current metadata |
+| `github_raw_responses`            | Safe relational pointer to immutable Raw HTTP evidence |
+| `github_repository_snapshots`     | Immutable Repository state per UTC observation date    |
+| `github_topic_repository_matches` | Mapping, query, rank, run, and tracking evidence       |
+| `github_repository_poll_states`   | ETag and safe last-poll state                          |
+| `github_discovery_states`         | Per-mapping discovery checkpoint and status            |
 
-An independent empty PostgreSQL database ran every migration from E00 through E04 and reached
-`20260811_0004` with 26 public tables. The exact temporary database was then deleted.
+An independent empty PostgreSQL database ran all migrations from E00 through E04, reached
+`20260811_0004`, and contained 26 public tables. The temporary database was then deleted.
 
 ## Authentication
 
-`GITHUB_TOKEN` is read only from environment or a deployment secret. The API/Worker Compose
-services receive it at runtime; blank interpolation normalizes to missing auth. Startup summaries,
-Raw metadata, logs, APIs, CLI output, and frontend types expose only `auth_configured: boolean`.
-The local acceptance environment currently reports `false`, so no real request is claimed.
+`GITHUB_TOKEN` is read only from an environment variable or deployment secret. The local API and
+Worker now report `auth_configured: true`. Startup summaries, Raw metadata, logs, APIs, CLI output,
+frontend types, and this report expose only that boolean—not the secret value. `.env` remains
+ignored by Git.
 
 ## Discovery Pilot and mapping quality
 
-Status: **Pending.** See [GitHub Pilot report](../data/github-pilot-report.md). The final acceptance
-requires 5–10 Topics, bounded discovery, an idempotent rerun, and manual review of at least 30 real
-persisted candidates. Fixture responses are test evidence, not a real-network Pilot.
+Status: **Passed.** The bounded six-Topic Pilot succeeded, and its identical real-network rerun
+created zero new Repository or Topic-match records. The initial run persisted 60 candidate
+observations across 55 unique repositories, with 51 tracked and 4 retained as candidates. It made
+six Search requests with no error or pause.
+
+Manual review covered 30 persisted rows: 23 were Direct or Ecosystem matches, 7 were Broad or
+tangential, and none were forks. Broad slash-like Search queries are explicitly documented for
+later curated review; observations did not silently modify Registry YAML. See the
+[GitHub Pilot report](../data/github-pilot-report.md).
 
 ## Snapshot
 
-Automated tests prove baseline 200, rename continuity, same-day idempotency, later-day equal-value
-snapshots, changed values, 304-to-`conditional_304`, safe poll state, 404/error isolation, and no
-fabricated gap. Operational baseline and a second real UTC-day Snapshot remain pending.
+Status: **Baseline and same-day idempotency passed; later UTC date pending.**
+
+Run `d839564c-0b69-4eec-9759-d7dc3b79e856` polled all 51 due tracked repositories, persisted 51 Raw
+HTTP 200 responses, and created 51 immutable baseline Snapshots with no error or rate pause. The
+immediate rerun `cfaa8aff-5900-4617-82eb-1b48ff2c6776` found zero due repositories and made zero
+requests or writes.
+
+Automated tests additionally cover baseline 200, rename continuity, same-day idempotency,
+later-day equal values, changed values, 304-to-`conditional_304`, safe poll state, isolated 404 and
+other errors, and no fabricated gaps. A real second observation date is still required.
 
 ## Rate limits
 
-Fixture tests prove safe parsing of limit, remaining, used, reset, resource and Retry-After headers;
-separate Search/Core floors; primary exhaustion handling; secondary 403/429 classification; and
-bounded retry. Real Pilot budgets, pauses, and secondary-limit event counts remain pending.
+The two discovery runs used 12 Search requests and left 18 of 30. The baseline used 51 Core
+requests and left 4949 of 5000. Operational counters recorded zero errors, zero rate pauses, and no
+secondary-limit event.
 
-## Idempotency and rename/transfer
+Tests cover safe parsing of limit, remaining, used, reset, resource, and `Retry-After` headers;
+separate Search/Core floors; primary exhaustion; secondary 403/429 classification; and bounded
+retry.
+
+## Idempotency and rename or transfer
 
 - Numeric GitHub Repository ID is unique; `full_name` is mutable.
-- A rename/transfer updates current identity and preserves prior snapshot names.
+- A rename or transfer updates current identity and preserves prior Snapshot names.
 - Repeated discovery updates one match instead of duplicating Repository identity.
-- Same Repository/date yields one snapshot; the same values on a later date remain a new point.
+- The same Repository and UTC date yields one Snapshot; equal values on a later date remain a new
+  observation.
 - Poll state advances only after Raw and Snapshot persistence succeed.
 
 ## Provenance
 
-Every received response is written to unified immutable Raw before parse/status handling. The DB
-index records endpoint, safe URL hash/parameters, Repository ID where applicable, status, ETag,
-Last-Modified, actual rate headers, Retry-After, collector/schema versions, checksum, and Raw path.
-Topic match evidence records mapping, exact query, rank, run, and Raw checksum. A real end-to-end
-lineage example will be inserted after the Pilot.
+Every received response is written to immutable Raw storage before parsing or status handling. The
+DB index records endpoint, safe URL hash and parameters, Repository ID where applicable, status,
+ETag, Last-Modified, actual rate headers, Retry-After, collector and schema versions, checksum, and
+Raw path. Topic-match evidence records mapping, exact query, rank, run, and Raw checksum.
+
+Verified lineage for Repository ID `960665821`, `microsoft/mcp-for-beginners`, connects its
+discovery match and Search Raw checksum to the Repository, the 2026-08-11 `full_200` Snapshot, Raw
+checksum, and baseline run. Across the Pilot, 63 immutable Raw responses were persisted: 12 Search
+and 51 Repository responses.
 
 ## API and Web
 
-- `GET /api/sources/github/status`
-- `GET /api/topics/{slug}/development`
-- Homepage Research/Developer stages use independent persisted collector truth.
-- Topic Developer has not-configured, not-initialized, live, degraded, zero-data, and localized
+- `GET /api/sources/github/status` reports healthy authenticated collection, 51 tracked
+  repositories, and 51 snapshots.
+- `GET /api/topics/{slug}/development` returns persisted metrics, repositories, and match evidence.
+- Model Context Protocol renders 9 tracked repositories, 80,511 stars, 14,015 forks, and 7 pushed
+  in 30 days. Baseline-only deltas are correctly absent.
+- Homepage Research and Developer stages use independent persisted collector truth.
+- Topic Developer supports not-configured, not-initialized, live, degraded, zero-data, and localized
   API-error states.
-- Live history shows Repository/star/fork/pushed-30d summaries, snapshot deltas, 5 Repository links,
-  and match evidence.
-- Research behavior is unchanged; Hacker News and Wikipedia remain Not collecting.
+- Browser acceptance passed `/`, `/topics`, and `/topics/model-context-protocol`, including five
+  real Repository links and evidence sections, with zero console warnings or errors.
+- Hacker News Community and Wikipedia Public remain Not collecting.
 
-Current browser preflight passed `/`, `/topics`, and `/topics/model-context-protocol`, with 24
-Explorer cards, live persisted Topic Research, GitHub truthfully Not collecting, and zero console
-warnings/errors. Developer Live and real Repository rendering remain pending authenticated data.
+The homepage currently shows the global arXiv Research collector as Degraded because its latest
+operational run was partial; the Topic Research panel still renders persisted live data. This is
+truthful E03 operational state, not an E04 regression.
 
 ## Tests and quality gate
 
-| Gate                                      | Result                                                         |
-| ----------------------------------------- | -------------------------------------------------------------- |
-| `ruff check .`                            | Passed                                                         |
-| `ruff format --check .`                   | Passed                                                         |
-| `mypy apps packages config db collectors` | Passed                                                         |
-| `pytest`                                  | 128 passed, 1 skipped (PostgreSQL URL not set in standard run) |
-| frontend lint                             | Passed                                                         |
-| frontend format                           | Passed                                                         |
-| frontend typecheck                        | Passed                                                         |
-| frontend tests                            | 29 passed                                                      |
-| frontend build                            | Passed                                                         |
-| empty PostgreSQL migration                | Passed at `20260811_0004`, 26 tables                           |
-| Docker Compose config/build/health        | Passed; db/api/worker/web healthy                              |
-| API/CLI no-auth smoke                     | Passed; `not_configured`, dry-run zero writes                  |
-| Browser preflight                         | Passed; operational Developer-live check pending               |
-| Core TODO/stub audit                      | No E04 stub; only expected Windows signal fallback             |
+| Gate                                 | Result                                           |
+| ------------------------------------ | ------------------------------------------------ |
+| `python -m ruff check .`             | Passed                                           |
+| `python -m ruff format --check .`    | Passed                                           |
+| `python -m mypy apps packages db`    | Passed                                           |
+| `python -m pytest`                   | 128 passed, 1 skipped                            |
+| `npm run lint`                       | Passed                                           |
+| `npm run typecheck`                  | Passed                                           |
+| `npm run test`                       | 29 passed                                        |
+| `npm run build`                      | Passed                                           |
+| Empty PostgreSQL migration           | Passed at `20260811_0004`, 26 tables             |
+| Docker Compose config/build/health   | Passed; db, api, worker, and web healthy         |
+| Authenticated dry-run                | Passed; configured auth, zero network and writes |
+| Real discovery and identical rerun   | Passed                                           |
+| Baseline and same-day Snapshot rerun | Passed                                           |
+| Browser Developer-live acceptance    | Passed                                           |
+| Second real UTC-day Snapshot         | **Pending**                                      |
 
-## Outstanding acceptance gates
+## Outstanding acceptance gate
 
-1. Operator configures a protected `GITHUB_TOKEN`.
-2. Run the bounded 6-Topic discovery Pilot and its identical idempotency rerun.
-3. Manually review and document at least 30 persisted Repository candidates.
-4. Record the baseline and a second real Snapshot on a later UTC date.
-5. Capture real Search/Core budgets, DQ records, and one full lineage example.
-6. Re-run API and browser acceptance with Developer truthfully Live.
-7. Replace this pending result with Accepted only if every E04 definition-of-done item passes.
+1. After the normal due interval and on a later UTC date, run the Snapshot collector.
+2. Confirm a second immutable point, changed and unchanged handling, Core budget, and error or pause
+   counters from persisted evidence.
+3. Re-run the required quality gates if code changes occur, update the Pilot report, and change this
+   result to **Accepted** only if every E04 definition-of-done item passes.
+
+No clock manipulation, manual database insertion, interpolation, or fabricated backfill may satisfy
+this gate.
 
 ## Known limitations
 
-- No GitHub history exists before Signal Observatory first observes a Repository.
+- GitHub history begins when Signal Observatory first observes a Repository.
 - Missing daily Snapshots remain missing; no interpolation or backfill is fabricated.
-- Only Research can currently be called live in this environment; Developer waits for the
-  authenticated Pilot. Community and Public are not collecting.
-- No Trend Score, Developer Score, momentum, acceleration, forecast, or cross-source analysis.
-- No individual Stargazer history, user profiling, contributor graph, detailed commit/PR/issue
-  analytics, code search, cloning, or source-code analysis.
+- Research and Developer have persisted data. Research's global operational health is currently
+  degraded while the E03 seven-day scheduler soak remains in progress.
+- Community and Public are not collecting.
+- There is no Trend Score, Developer Score, momentum, acceleration, forecast, or cross-source
+  analysis yet.
+- There is no individual Stargazer history, user profiling, contributor graph, detailed
+  commit/PR/issue analytics, code search, cloning, or source-code analysis.
 
 ## Next recommended Epic
 
