@@ -103,7 +103,9 @@ async def test_dry_run_has_no_network_database_or_raw_writes(
         session.commit()
 
         summary = await GithubCollectionService(
-            session, Settings(raw_data_path=tmp_path), raw_store=LocalRawStore(tmp_path)
+            session,
+            Settings(_env_file=None, raw_data_path=tmp_path),
+            raw_store=LocalRawStore(tmp_path),
         ).discover(topic_slugs=["mcp"], dry_run=True)
 
         assert summary.mode == "dry_run"

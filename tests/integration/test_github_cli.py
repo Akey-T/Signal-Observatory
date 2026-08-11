@@ -17,8 +17,10 @@ def test_github_cli_dry_run_status_sample_and_missing_auth(
     migrated_engine: Engine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     monkeypatch.setenv("SIGNAL_DATABASE_URL", str(migrated_engine.url))
-    monkeypatch.delenv("GITHUB_TOKEN", raising=False)
-    monkeypatch.delenv("SIGNAL_GITHUB_TOKEN", raising=False)
+    # Environment variables must override a developer's repository-local .env.
+    # Blank values are normalized to missing auth by Settings.
+    monkeypatch.setenv("GITHUB_TOKEN", "")
+    monkeypatch.setenv("SIGNAL_GITHUB_TOKEN", "")
     with Session(migrated_engine) as session:
         source = Source(name="github", kind="api", metadata_={})
         topic = Topic(
