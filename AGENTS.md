@@ -45,6 +45,23 @@ These rules apply to the entire repository.
 39. Do not download PDFs or full text in E03.
 40. Do not derive Trend Score from paper counts in E03.
 41. External observations and Registry configuration remain separate concepts.
+42. Never scrape GitHub human-facing HTML for E04 data.
+43. Use GitHub repository numeric ID as persistent identity.
+44. Repository `full_name` is mutable.
+45. Every GitHub HTTP response must have Raw provenance.
+46. Never log authentication tokens.
+47. GitHub Topic matching must be explainable by explicit Registry mappings.
+48. Do not silently generate GitHub queries from Topic aliases.
+49. Search discovery and Repository snapshotting are separate concerns.
+50. Historical Repository snapshots are immutable.
+51. Never fabricate pre-observation star history.
+52. Do not collect individual Stargazer histories in E04.
+53. Use conditional requests where appropriate.
+54. Respect rate-limit and retry headers.
+55. Do not interpret stars as Trend Score.
+56. Do not use contributor-level data unless a later Epic explicitly approves it.
+57. A missing daily Snapshot must remain observable as missing data.
+58. GitHub failures must not modify arXiv Research evidence.
 
 ## Repository boundaries
 
@@ -52,7 +69,8 @@ These rules apply to the entire repository.
 - `packages/collector-core/` owns shared ingestion contracts and Bronze storage.
 - `packages/topic-registry/` owns curated Topic schema, validation, diff, and sync logic.
 - `db/` owns SQLAlchemy models, repositories, and Alembic migrations.
-- `collectors/` contains source-specific collectors; `collectors/arxiv/` owns E03 arXiv logic.
+- `collectors/` contains source-specific collectors; `collectors/arxiv/` owns E03 arXiv logic and
+  `collectors/github/` owns E04 GitHub logic.
 - `config/topics/` is the administrative source of truth for curated Topics.
 - `data/raw/` is runtime state and must never be edited in place.
 - Gold analytics are interfaces only until their persisted inputs and metric definitions exist.

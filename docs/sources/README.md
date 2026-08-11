@@ -5,6 +5,7 @@ Each source must document its official API/feed, authentication, rate limits, ch
 Implemented sources:
 
 - [arXiv Research metadata](arxiv.md) — live in E03 through the official arXiv API.
+- [GitHub Developer metadata](github.md) — E04 implementation complete; authenticated Pilot and
+  forward-snapshot acceptance determine whether it is live.
 
-GitHub, Hacker News, and Wikipedia remain Registry mappings only; their collectors are not yet
-implemented.
+Hacker News and Wikipedia remain Registry mappings only; their collectors are not implemented.

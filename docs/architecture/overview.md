@@ -19,7 +19,7 @@ flowchart LR
     API --> UI["React UI"]
 ```
 
-E00-E02 implement the platform through Silver, add the curated Topic Registry, and define the Gold boundary. E02.5 adds a read-only Topic Observatory Experience. E03 adds the first real source: selective arXiv metadata collection through explicit Registry mappings. Aggregations and trend algorithms remain deliberately absent.
+E00-E02 implement the platform through Silver, add the curated Topic Registry, and define the Gold boundary. E02.5 adds a read-only Topic Observatory Experience. E03 adds selective arXiv Research observations. E04 adds explicit GitHub Repository discovery and forward-only Developer snapshots. Aggregations and trend algorithms remain deliberately absent.
 
 ## arXiv Research observation flow
 
@@ -39,6 +39,25 @@ Every received response reaches Raw before parser or HTTP-status handling. `arxi
 indexes the request evidence, and `arxiv_paper_observations` links each normalized observation to
 the exact Raw checksum and ingestion run. `arxiv_topic_matches` records the explicit mapping and
 query explanation; it does not assert an inferred semantic relationship.
+
+## GitHub Developer observation flow
+
+```mermaid
+flowchart LR
+    Registry["Enabled Registry GitHub mapping"] --> Discovery["Bounded Repository Search"]
+    Discovery --> Match["Explainable Topic Repository match"]
+    Match --> Identity["Numeric Repository identity"]
+    Identity --> Poll["Daily ETag poll"]
+    Poll --> Raw["Immutable Raw HTTP observation"]
+    Raw --> Snapshot["Immutable daily Repository snapshot"]
+    Snapshot --> Developer["Read-only Developer API"]
+    Developer --> Web["Topic Developer surface"]
+```
+
+Discovery and snapshotting are independent schedules and use Search/Core budgets respectively.
+`github_repositories` is the mutable current identity projection; daily snapshot rows are never
+updated. A 304 Raw observation creates a `conditional_304` daily point from the previous known
+state. No row is created for a day without a successful poll.
 
 ## Topic Registry control plane
 
@@ -63,17 +82,17 @@ constructs requests.
 
 ## Runtime components
 
-| Component     | Responsibility                                                  | Persistent writes        |
-| ------------- | --------------------------------------------------------------- | ------------------------ |
-| API           | Health/readiness, Topic, arXiv status, and Research reads       | None                     |
-| Worker        | Minimal daily arXiv scheduler and graceful collector host       | Raw/Silver via collector |
-| PostgreSQL    | Silver entities and ingestion lifecycle                         | Alembic-managed tables   |
-| Web           | Read-only Registry, explorer, detail, and Research observations | None                     |
-| LocalRawStore | Atomic Bronze publication and verification                      | `data/raw/`              |
+| Component     | Responsibility                                                    | Persistent writes        |
+| ------------- | ----------------------------------------------------------------- | ------------------------ |
+| API           | Health, Topic, Research, Developer, and source-status reads       | None                     |
+| Worker        | Shared arXiv/GitHub UTC scheduler and graceful collector host     | Raw/Silver via collector |
+| PostgreSQL    | Silver entities and ingestion lifecycle                           | Alembic-managed tables   |
+| Web           | Read-only Registry, explorer, Research and Developer observations | None                     |
+| LocalRawStore | Atomic Bronze publication and verification                        | `data/raw/`              |
 
-Docker Compose orders startup as PostgreSQL healthy → API migrated/healthy → Worker and Web. The API validates its configuration, retries database startup connectivity, and disposes its engine during graceful shutdown. The worker exposes health through a readiness file that exists only while its database-validated event loop and validated daily arXiv schedule are running. Manual backfill, incremental collection, status, and sampling remain available through the CLI.
+Docker Compose orders startup as PostgreSQL healthy → API migrated/healthy → Worker and Web. The API validates its configuration, retries database startup connectivity, and disposes its engine during graceful shutdown. The worker exposes health through a readiness file that exists only while its database-validated event loop and validated UTC schedules are running. It polls wall time to tolerate host sleep and serializes source jobs with a shared lock. Manual collection, discovery, snapshots, status, and sampling remain available through the CLI.
 
-The Web UI consumes only read-only Topic and Research APIs. Featured topics are selected deterministically from active topics using editorial monitoring priority and top-level category diversity; paper counts do not affect that rule. Configured source mappings are displayed separately from observation state. Research becomes live only from a successful per-mapping cursor, degraded history remains visible, and GitHub/Hacker News/Wikipedia stay not collecting.
+The Web UI consumes only read-only Topic, Research, and Developer APIs. Featured topics are selected deterministically from active topics using editorial monitoring priority and top-level category diversity; observation counts do not affect that rule. Configured source mappings are displayed separately from observation state. Research becomes live only from a successful per-mapping cursor; Developer becomes live only from a successful GitHub snapshot; degraded history remains visible. Hacker News and Wikipedia stay not collecting.
 
 ## Bronze invariants
 
@@ -103,10 +122,14 @@ The filesystem implementation is intentionally local. A future object-store impl
 - Paper/Topic is many-to-many and every match records its Registry mapping and exact query.
 - Author order and arXiv categories are relational; author display names are not resolved identities.
 - Per-mapping cursors advance only after durable Raw and Silver persistence.
+- GitHub Repository external identity is numeric; `full_name` is mutable display metadata.
+- Repository/Topic is many-to-many and every match records mapping, query, rank, run, and Raw.
+- Repository snapshots are immutable, unique per Repository/UTC date, and begin at first observation.
+- ETag poll state advances only after Raw and daily snapshot semantics commit.
 
 ## Gold boundary
 
-Gold values must identify the topic, metric name, UTC window, numeric value, and metric definition version. Implementations must derive values from persisted Bronze/Silver inputs. E03 Research counts are read-time observation summaries over Paper publication timestamps, not Gold metrics. No Trend Score is defined because a score without a versioned definition would not be reproducible.
+Gold values must identify the topic, metric name, UTC window, numeric value, and metric definition version. Implementations must derive values from persisted Bronze/Silver inputs. E03 Research counts and E04 Repository totals/deltas are read-time observation summaries, not Gold metrics. No Trend Score is defined because a score without a versioned definition would not be reproducible.
 
 ## Reliability and security
 

@@ -2,7 +2,7 @@
 
 Signal Observatory 是一个长期运行的数据工程与趋势研究项目。它保存公开机器接口中的技术生态观测，构建可追溯、可重复计算的历史序列，用于研究技术从 Research → Developer Adoption → Community Attention → Public Attention 的传播过程。
 
-当前仓库完成 **E00 Project Foundation**、**E01 Data Infrastructure**、**E02 Topic Registry**、**E02.5 Topic Observatory Experience** 与 **E03 arXiv Research Collector**。Research/arXiv 是首个真实观测通道；Trend Score、AI 摘要、自动 topic discovery 和完整 Dashboard 仍不在当前范围内。
+当前仓库完成 **E00 Project Foundation**、**E01 Data Infrastructure**、**E02 Topic Registry**、**E02.5 Topic Observatory Experience** 与 **E03 arXiv Research Collector**。**E04 GitHub Developer Collector 已实现并正在完成认证 Pilot 与连续快照验收**；在真实成功快照前，页面不会将 Developer 标为 Live。Trend Score、AI 摘要、自动 topic discovery 和完整 Dashboard 仍不在当前范围内。
 
 ## 已实现
 
@@ -19,6 +19,9 @@ Signal Observatory 是一个长期运行的数据工程与趋势研究项目。�
 - 官方 arXiv API 元数据采集、不可变 Raw 响应、规范化 Paper/Author/Category 与可解释 Topic Match
 - 可恢复历史 backfill、每 mapping 增量 cursor、每日 Worker 调度、受控 retry/rate limit 与 403 停止策略
 - Research Observation API、collector status、人工 mapping sample，以及 Topic Detail 的 live/degraded/zero-data 状态
+- 官方 GitHub REST API 认证客户端、Raw-first Repository discovery、numeric Repository identity、可解释 Topic match
+- 每日不可变 Repository Snapshot、ETag/304、Search/Core budget、保守限流与独立 weekly discovery/daily snapshot 调度
+- Developer Observation API、collector status、Repository evidence 列表，以及真实 live/degraded/zero-data 状态
 
 ## 快速启动
 
@@ -37,9 +40,9 @@ Web 路由：
 
 - `/`：Registry Overview，动态展示 Registry 统计、3 个跨领域 Featured Topics、30 个 Supporting Topics、Topic Universe 和 Registry Health。
 - `/topics`：Topic Explorer，支持 Topic/Alias 搜索、Category/Status/Source 筛选、URL query state 和分页。
-- `/topics/:slug`：Topic Detail，展示 Canonical Topic、Aliases、Monitoring Priority、可读 Source Mapping，以及持久化 arXiv Research observations。
+- `/topics/:slug`：Topic Detail，展示 Canonical Topic、Aliases、Monitoring Priority、可读 Source Mapping，以及持久化 arXiv Research / GitHub Developer observations。
 
-当前 Web 只将拥有真实成功 cursor 的 arXiv mapping 标记为 **Research Live**；失败后的历史数据以 **Degraded** 状态继续可读。`Configured` 仍只表示 Registry 中存在 Source Mapping。GitHub、Hacker News 和 Wikipedia 均为 **Not collecting yet**，页面不会展示没有持久化 Observation 支撑的 Trend、Growth、Momentum 或 Popularity。
+Web 只将拥有真实成功 cursor 的 arXiv mapping 标记为 **Research Live**，只将拥有真实成功 Repository Snapshot 的 GitHub mapping 标记为 **Developer Live**；失败后的历史数据以 **Degraded** 状态继续可读。`Configured` 仍只表示 Registry 中存在 Source Mapping。Hacker News 和 Wikipedia 为 **Not collecting yet**，页面不会展示没有持久化 Observation 支撑的 Trend、Growth、Momentum 或 Popularity。
 
 ## Topic Registry
 
@@ -70,6 +73,8 @@ CLI 退出码：`0` 成功，`1` registry 校验或查询失败，`2` 配置失�
 - `GET /api/topic-registry/status`
 - `GET /api/sources/arxiv/status`
 - `GET /api/topics/{slug}/research`
+- `GET /api/sources/github/status`
+- `GET /api/topics/{slug}/development`
 
 完整维护手册见 [Topic Registry 文档](docs/topics/topic-registry.md)。
 
@@ -85,6 +90,27 @@ signal-observatory arxiv sample --topic model-context-protocol --limit 20 --json
 ```
 
 backfill 与 incremental 都有 per-mapping checkpoint；只有 Raw 与 Silver 成功持久化后 cursor 才会前进。详细策略见 [arXiv source 文档](docs/sources/arxiv.md)，实测数据见 [Pilot 报告](docs/data/arxiv-pilot-report.md)。
+
+## GitHub Developer Collector
+
+Collector 只读取 Registry 中显式启用的 GitHub mapping，并使用官方 REST API。稳定身份是
+GitHub numeric Repository ID；`owner/repo` 可以随 rename/transfer 更新。第一次真实快照是
+历史覆盖起点，此前的每日 Stars 不会被伪造。
+
+先复制 `.env.example` 为被 Git 忽略的 `.env`，设置只读公开 Repository metadata 所需的
+`GITHUB_TOKEN`，再重建服务。Token 不会进入 Raw、日志、API 或前端。缺少 Token 时状态明确为
+`not_configured`，默认不会静默执行匿名高流量采集。
+
+```powershell
+signal-observatory github status --json
+signal-observatory github discover --topic model-context-protocol --dry-run --json
+signal-observatory github discover --topic model-context-protocol --max-results 10 --max-requests 5 --json
+signal-observatory github sample --topic model-context-protocol --limit 20 --json
+signal-observatory github snapshot --topic model-context-protocol --json
+```
+
+Discovery 默认每周执行、Snapshot 默认每天执行；两者使用独立 Search/Core budget。详细策略见
+[GitHub source 文档](docs/sources/github.md)。E04 认证 Pilot、至少 30 个 Repository 人工复核和第二个真实日快照完成前，仓库不会宣称 Developer 通道验收完成。
 
 ## 数据库与质量检查
 
@@ -113,4 +139,4 @@ Silver → Aggregation → Gold → Analytics → API → UI
 
 Topic Registry 只定义观测对象及各来源的显式查询映射。它不执行网络请求，不从关键词自动创建 canonical Topic，也不会删除数据库中的历史 Topic。YAML 中移除的数据库实体会作为 orphan warning 保留；明确退役必须将 status 改为 `deprecated`。
 
-详细设计见 [架构总览](docs/architecture/overview.md) 与 [ADR](docs/adr/)。下一推荐 Epic 是 **E04 GitHub Developer Collector**。
+详细设计见 [架构总览](docs/architecture/overview.md) 与 [ADR](docs/adr/)。E04 完整验收后的下一推荐 Epic 仅为 **E05 Hacker News Community Collector**。

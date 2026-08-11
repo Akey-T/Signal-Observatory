@@ -1,10 +1,12 @@
-# Collectors
+# Source collectors
 
-`collectors/arxiv/` is the first source-specific collector. It performs selective,
-topic-driven metadata collection through the official arXiv API. The package owns query
-construction, conservative HTTP access, Atom parsing, Raw-response lineage, idempotent Silver
-persistence, backfill/incremental orchestration, cursors, status, and sampling services.
+Source-specific clients, parsers, query builders, persistence orchestration, and read models live
+under this directory. They reuse `collector-core` Raw contracts and the shared ingestion lifecycle;
+they do not create a parallel framework.
 
-It does not scrape arXiv HTML, download PDFs/full text, invent Topic mappings, classify papers
-with an LLM, or calculate trend metrics. Shared ingestion contracts and filesystem Raw storage
-remain in `packages/collector-core/`.
+- `arxiv/`: E03 Research metadata, resumable cursors, and Paper evidence.
+- `github/`: E04 Repository discovery, numeric identity, immutable daily snapshots, and Developer
+  evidence.
+
+Generic Topic models never contain source query logic. Each collector executes only explicit
+Registry mappings and may not modify curated YAML from observations.
