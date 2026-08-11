@@ -8,7 +8,11 @@ import { TopicCompactCard } from "../components/topic/TopicCompactCard";
 import { TopicUniverseSection } from "../components/topic/TopicUniverseSection";
 import { useRegistry } from "../context/RegistryContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { useArxivStatusQuery, useTopicsQuery } from "../hooks/useTopicData";
+import {
+  useArxivStatusQuery,
+  useGithubStatusQuery,
+  useTopicsQuery,
+} from "../hooks/useTopicData";
 import { selectFeaturedTopics, selectSupportingTopics } from "../lib/topics";
 
 const observationPath = [
@@ -23,9 +27,13 @@ export function OverviewPage() {
   const registry = useRegistry();
   const topics = useTopicsQuery({ limit: 500, offset: 0 });
   const arxiv = useArxivStatusQuery();
+  const github = useGithubStatusQuery();
   const researchLive =
     arxiv.data?.collector_state === "healthy" &&
     arxiv.data.last_successful_run_at !== null;
+  const developerLive =
+    github.data?.collector_state === "healthy" &&
+    github.data.last_successful_snapshot_at !== null;
   const retry = () => {
     registry.retry();
     topics.retry();
@@ -52,7 +60,8 @@ export function OverviewPage() {
           <div className="truth-note">
             <span aria-hidden="true" />
             Topic Registry ready · Research collector{" "}
-            {researchLive ? "live" : "not live"}
+            {researchLive ? "live" : "not live"} · Developer collector{" "}
+            {developerLive ? "live" : "not live"}
           </div>
         </div>
 
@@ -66,9 +75,15 @@ export function OverviewPage() {
               <strong>{stage}</strong>
               <em>{source}</em>
               <small>
-                {stage === "Research" && researchLive
-                  ? "arXiv · Live"
-                  : "Configured / ready"}
+                {stage === "Research"
+                  ? researchLive
+                    ? "arXiv · Live"
+                    : "arXiv · Not live"
+                  : stage === "Developer"
+                    ? developerLive
+                      ? "GitHub · Live"
+                      : "GitHub · Not live"
+                    : "Configured / ready"}
               </small>
             </div>
           ))}
@@ -168,6 +183,8 @@ export function OverviewPage() {
             categoryCount={registry.categories.length}
             collectorError={arxiv.error !== null}
             collectorStatus={arxiv.data}
+            githubError={github.error !== null}
+            githubStatus={github.data}
             status={registry.status}
           />
         </>

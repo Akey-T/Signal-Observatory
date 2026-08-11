@@ -1,9 +1,11 @@
 import type {
   ArxivStatus,
   Category,
+  GithubStatus,
   RegistryStatus,
   SourceMapping,
   Topic,
+  TopicDevelopment,
   TopicResearch,
 } from "../types/api";
 
@@ -67,6 +69,23 @@ export const arxivStatus: ArxivStatus = {
   error_count_last_run: 0,
 };
 
+export const githubStatus: GithubStatus = {
+  source: "github",
+  enabled: true,
+  auth_configured: false,
+  collector_state: "not_configured",
+  last_run_at: null,
+  last_run_status: null,
+  last_discovery_at: null,
+  last_snapshot_at: null,
+  last_successful_snapshot_at: null,
+  tracked_repositories: 0,
+  snapshots: 0,
+  errors_last_run: 0,
+  search_rate: null,
+  core_rate: null,
+};
+
 export const topicResearch: TopicResearch = {
   topic: {
     slug: "model-context-protocol",
@@ -111,6 +130,73 @@ export const liveTopicResearch: TopicResearch = {
       source_mapping_id: "mapping-arxiv-mcp",
       ingestion_run_id: "run-1",
       raw_checksum: "b".repeat(64),
+    },
+  ],
+};
+
+export const topicDevelopment: TopicDevelopment = {
+  topic: {
+    slug: "model-context-protocol",
+    canonical_name: "Model Context Protocol",
+  },
+  source: "github",
+  state: "not_initialized",
+  last_snapshot_at: null,
+  last_successful_snapshot_at: null,
+  collector_error: null,
+  summary: {
+    repositories_tracked: 0,
+    stars_total: 0,
+    forks_total: 0,
+    repositories_pushed_30d: 0,
+    stars_delta_since_previous_snapshot: null,
+    forks_delta_since_previous_snapshot: null,
+    previous_snapshot_at: null,
+    latest_snapshot_at: null,
+  },
+  top_repositories: [],
+};
+
+export const liveTopicDevelopment: TopicDevelopment = {
+  ...topicDevelopment,
+  state: "live",
+  last_snapshot_at: "2026-08-11T03:00:00Z",
+  last_successful_snapshot_at: "2026-08-11T03:01:00Z",
+  summary: {
+    repositories_tracked: 6,
+    stars_total: 12500,
+    forks_total: 980,
+    repositories_pushed_30d: 5,
+    stars_delta_since_previous_snapshot: 42,
+    forks_delta_since_previous_snapshot: 7,
+    previous_snapshot_at: "2026-08-10T03:00:00Z",
+    latest_snapshot_at: "2026-08-11T03:00:00Z",
+  },
+  top_repositories: [
+    {
+      github_repository_id: 123456,
+      full_name: "modelcontextprotocol/servers",
+      description: "Reference servers for the Model Context Protocol.",
+      html_url: "https://github.com/modelcontextprotocol/servers",
+      language: "TypeScript",
+      stars: 10000,
+      forks: 800,
+      pushed_at: "2026-08-11T01:00:00Z",
+      archived: false,
+      disabled: false,
+      latest_snapshot_at: "2026-08-11T03:00:00Z",
+      previous_snapshot_at: "2026-08-10T03:00:00Z",
+      stars_delta: 40,
+      forks_delta: 6,
+      match_evidence: [
+        {
+          matched_query: '"model context protocol" in:name,description,readme',
+          source_mapping_id: "mapping-github-mcp",
+          discovery_rank: 1,
+          discovery_run_id: "run-github-1",
+          raw_checksum: "c".repeat(64),
+        },
+      ],
     },
   ],
 };

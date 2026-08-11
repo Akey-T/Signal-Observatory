@@ -6,10 +6,18 @@ import {
   LatestResearch,
   ResearchObservations,
 } from "../components/signals/ResearchObservations";
+import {
+  DeveloperObservations,
+  TrackedRepositories,
+} from "../components/signals/DeveloperObservations";
 import { SignalChannelCard } from "../components/signals/SignalChannelCard";
 import { useRegistry } from "../context/RegistryContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
-import { useResearchQuery, useTopicQuery } from "../hooks/useTopicData";
+import {
+  useDevelopmentQuery,
+  useResearchQuery,
+  useTopicQuery,
+} from "../hooks/useTopicData";
 import { mappingForChannel, signalChannels } from "../lib/channels";
 import { categoryPath } from "../lib/topics";
 import { titleCase } from "../lib/format";
@@ -18,6 +26,7 @@ export function TopicDetailPage() {
   const { slug = "" } = useParams();
   const topic = useTopicQuery(slug);
   const research = useResearchQuery(slug);
+  const development = useDevelopmentQuery(slug);
   const registry = useRegistry();
   useDocumentTitle(
     topic.data
@@ -207,8 +216,8 @@ export function TopicDetailPage() {
             <h2 id="observations-title">Observations</h2>
           </div>
           <p>
-            Research reflects persisted arXiv observations. The other channels
-            remain configuration-only until their collectors are implemented.
+            Research and Developer reflect persisted source observations.
+            Community and Public remain configuration-only.
           </p>
         </div>
         <div className="signal-channel-grid signal-channel-grid--observations">
@@ -227,6 +236,19 @@ export function TopicDetailPage() {
                 />
               );
             }
+            if (channel.key === "developer") {
+              return (
+                <DeveloperObservations
+                  channel={channel}
+                  data={development.data}
+                  error={development.error}
+                  key={channel.key}
+                  loading={development.loading}
+                  mapping={mapping}
+                  onRetry={development.retry}
+                />
+              );
+            }
             return (
               <SignalChannelCard
                 channel={channel}
@@ -238,6 +260,7 @@ export function TopicDetailPage() {
           })}
         </div>
         <LatestResearch data={research.data} />
+        <TrackedRepositories data={development.data} />
       </section>
     </article>
   );

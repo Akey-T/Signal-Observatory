@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 import {
   mappingDetails,
   signalStateLabel,
@@ -51,4 +53,3 @@ export function SignalChannelCard({
     </article>
   );
 }
-import type { ReactNode } from "react";

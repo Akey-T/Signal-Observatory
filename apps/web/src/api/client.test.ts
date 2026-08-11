@@ -2,15 +2,19 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
   getArxivStatus,
+  getDevelopment,
+  getGithubStatus,
   getRegistryStatus,
   getResearch,
   getTopics,
 } from "./client";
 import {
   arxivStatus,
+  githubStatus,
   makeTopic,
   registryStatus,
   topicResearch,
+  topicDevelopment,
 } from "../test/fixtures";
 
 function responseWith(body: unknown, status = 200): Response {
@@ -87,5 +91,30 @@ describe("registry API client", () => {
       "/api/sources/arxiv/status",
       expect.objectContaining({ headers: { Accept: "application/json" } }),
     );
+  });
+
+  it("loads persisted Developer observations for an encoded Topic slug", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(responseWith(topicDevelopment));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getDevelopment("model context/protocol")).resolves.toEqual(
+      topicDevelopment,
+    );
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/topics/model%20context%2Fprotocol/development",
+      expect.objectContaining({ headers: { Accept: "application/json" } }),
+    );
+  });
+
+  it("loads GitHub collector status without exposing a credential", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(responseWith(githubStatus));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getGithubStatus()).resolves.toEqual(githubStatus);
+    expect(fetchMock).toHaveBeenCalledWith(
+      "/api/sources/github/status",
+      expect.objectContaining({ headers: { Accept: "application/json" } }),
+    );
+    expect(githubStatus).not.toHaveProperty("token");
   });
 });

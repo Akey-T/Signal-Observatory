@@ -2,14 +2,18 @@ import { useEffect, useState } from "react";
 
 import {
   getArxivStatus,
+  getDevelopment,
+  getGithubStatus,
   getResearch,
   getTopic,
   getTopics,
 } from "../api/client";
 import type {
   ArxivStatus,
+  GithubStatus,
   Topic,
   TopicListResponse,
+  TopicDevelopment,
   TopicResearch,
   TopicsQuery,
 } from "../types/api";
@@ -142,5 +146,23 @@ export function useArxivStatusQuery(): ResourceState<ArxivStatus> {
     (signal) => getArxivStatus(signal),
     "arxiv-status",
     "arXiv collector status could not be loaded.",
+  );
+}
+
+export function useDevelopmentQuery(
+  slug: string,
+): ResourceState<TopicDevelopment> {
+  return useResource(
+    (signal) => getDevelopment(slug, signal),
+    slug,
+    "Developer observations could not be loaded.",
+  );
+}
+
+export function useGithubStatusQuery(): ResourceState<GithubStatus> {
+  return useResource(
+    (signal) => getGithubStatus(signal),
+    "github-status",
+    "GitHub collector status could not be loaded.",
   );
 }

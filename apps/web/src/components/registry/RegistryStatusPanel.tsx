@@ -1,16 +1,24 @@
 import { formatRegistryDate } from "../../lib/format";
-import type { ArxivStatus, RegistryStatus } from "../../types/api";
+import type {
+  ArxivStatus,
+  GithubStatus,
+  RegistryStatus,
+} from "../../types/api";
 
 export function RegistryStatusPanel({
   status,
   categoryCount,
   collectorStatus,
   collectorError,
+  githubStatus,
+  githubError,
 }: {
   status: RegistryStatus;
   categoryCount: number;
   collectorStatus: ArxivStatus | null;
   collectorError: boolean;
+  githubStatus: GithubStatus | null;
+  githubError: boolean;
 }) {
   const entries = [
     ["Registry", `v${status.version}`],
@@ -31,6 +39,18 @@ export function RegistryStatusPanel({
         : collectorStatus.collector_state === "degraded"
           ? "Degraded"
           : "Not initialized";
+  const githubLabel = githubError
+    ? "Unavailable"
+    : githubStatus === null
+      ? "Checking"
+      : githubStatus.collector_state === "healthy" &&
+          githubStatus.last_successful_snapshot_at !== null
+        ? "Live"
+        : githubStatus.collector_state === "degraded"
+          ? "Degraded"
+          : githubStatus.collector_state === "not_configured"
+            ? "Not configured"
+            : "Not initialized";
 
   return (
     <section
@@ -44,8 +64,8 @@ export function RegistryStatusPanel({
         </div>
         <p>
           These metrics describe only the curated Registry and its mappings.
-          Research collector state is reported separately and never changes
-          Registry health.
+          Research and Developer collector states are reported separately and
+          never change Registry health.
         </p>
       </div>
       <div className="status-panel">
@@ -74,9 +94,21 @@ export function RegistryStatusPanel({
               {collectorLabel}
             </strong>
           </div>
+          <div>
+            <span>Developer collector</span>
+            <strong
+              className={
+                githubLabel === "Live"
+                  ? "status-panel__live"
+                  : "status-panel__pending"
+              }
+            >
+              {githubLabel}
+            </strong>
+          </div>
           <p>
-            arXiv is the only implemented observation source. GitHub, Hacker
-            News and Wikipedia mappings are not collecting yet.
+            arXiv and GitHub use persisted observations. Hacker News and
+            Wikipedia mappings are not collecting yet.
           </p>
         </div>
       </div>

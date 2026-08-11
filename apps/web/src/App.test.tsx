@@ -8,6 +8,8 @@ import {
   ApiError,
   getArxivStatus,
   getCategories,
+  getDevelopment,
+  getGithubStatus,
   getResearch,
   getRegistryStatus,
   getTopic,
@@ -17,10 +19,13 @@ import {
   categories,
   arxivStatus,
   liveTopicResearch,
+  githubStatus,
+  liveTopicDevelopment,
   makeTopic,
   modelContextProtocol,
   registryStatus,
   topicResearch,
+  topicDevelopment,
 } from "./test/fixtures";
 import type { TopicListResponse, TopicsQuery } from "./types/api";
 
@@ -38,6 +43,8 @@ vi.mock("./api/client", () => {
     ApiError: MockApiError,
     getCategories: vi.fn(),
     getArxivStatus: vi.fn(),
+    getDevelopment: vi.fn(),
+    getGithubStatus: vi.fn(),
     getResearch: vi.fn(),
     getRegistryStatus: vi.fn(),
     getTopic: vi.fn(),
@@ -47,6 +54,8 @@ vi.mock("./api/client", () => {
 
 const mockedGetCategories = vi.mocked(getCategories);
 const mockedGetArxivStatus = vi.mocked(getArxivStatus);
+const mockedGetDevelopment = vi.mocked(getDevelopment);
+const mockedGetGithubStatus = vi.mocked(getGithubStatus);
 const mockedGetResearch = vi.mocked(getResearch);
 const mockedGetRegistryStatus = vi.mocked(getRegistryStatus);
 const mockedGetTopic = vi.mocked(getTopic);
@@ -78,6 +87,8 @@ beforeEach(() => {
   vi.stubGlobal("scrollTo", vi.fn());
   mockedGetCategories.mockResolvedValue(categories);
   mockedGetArxivStatus.mockResolvedValue(arxivStatus);
+  mockedGetDevelopment.mockResolvedValue(topicDevelopment);
+  mockedGetGithubStatus.mockResolvedValue(githubStatus);
   mockedGetResearch.mockResolvedValue(topicResearch);
   mockedGetRegistryStatus.mockResolvedValue(registryStatus);
   mockedGetTopic.mockResolvedValue(modelContextProtocol);
@@ -110,7 +121,9 @@ describe("Overview", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Not initialized")).toBeInTheDocument();
     expect(
-      screen.getByText("Research/arXiv implemented · 3 channels pending"),
+      screen.getByText(
+        "arXiv + GitHub interfaces implemented · 2 channels pending",
+      ),
     ).toBeInTheDocument();
     expect(
       screen.queryByText(/External collectors have not started/i),
@@ -131,11 +144,30 @@ describe("Overview", () => {
     renderApp("/");
 
     expect(await screen.findByText("arXiv · Live")).toBeInTheDocument();
-    expect(screen.getAllByText("Configured / ready")).toHaveLength(3);
+    expect(screen.getByText("GitHub · Not live")).toBeInTheDocument();
+    expect(screen.getAllByText("Configured / ready")).toHaveLength(2);
     expect(
-      screen.getByText("Topic Registry ready · Research collector live"),
+      screen.getByText(
+        "Topic Registry ready · Research collector live · Developer collector not live",
+      ),
     ).toBeInTheDocument();
     expect(screen.getByText("Research collector")).toBeInTheDocument();
+  });
+
+  it("marks Developer live only after a successful healthy GitHub snapshot", async () => {
+    mockedGetGithubStatus.mockResolvedValue({
+      ...githubStatus,
+      auth_configured: true,
+      collector_state: "healthy",
+      last_run_at: "2026-08-11T03:01:00Z",
+      last_run_status: "succeeded",
+      last_snapshot_at: "2026-08-11T03:00:00Z",
+      last_successful_snapshot_at: "2026-08-11T03:01:00Z",
+    });
+    renderApp("/");
+
+    expect(await screen.findByText("GitHub · Live")).toBeInTheDocument();
+    expect(screen.getByText("Developer collector")).toBeInTheDocument();
   });
 });
 
@@ -274,6 +306,44 @@ describe("Topic Detail", () => {
     ).toHaveAttribute("href", "https://arxiv.org/abs/2608.01234");
   });
 
+  it("shows live Developer counts, snapshot deltas and match evidence", async () => {
+    mockedGetDevelopment.mockResolvedValue(liveTopicDevelopment);
+    renderApp("/topics/model-context-protocol");
+
+    expect(await screen.findByText("Tracked Repositories")).toBeInTheDocument();
+    expect(screen.getByText("Repositories")).toBeInTheDocument();
+    expect(screen.getByText("12,500")).toBeInTheDocument();
+    expect(
+      screen.getByText(/Snapshot change: \+42 stars · \+7 forks/),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "modelcontextprotocol/servers" }),
+    ).toHaveAttribute(
+      "href",
+      "https://github.com/modelcontextprotocol/servers",
+    );
+    expect(screen.getByText("Match evidence")).toBeInTheDocument();
+  });
+
+  it("shows a truthful live zero-repository Developer state", async () => {
+    mockedGetDevelopment.mockResolvedValue({
+      ...topicDevelopment,
+      state: "live",
+    });
+    renderApp("/topics/model-context-protocol");
+
+    expect(
+      await screen.findByText(
+        "Collector live; no repositories matched this Topic.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        /zero count is a valid result for the curated GitHub mapping/i,
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("shows a truthful live zero-paper state", async () => {
     mockedGetResearch.mockResolvedValue({ ...topicResearch, state: "live" });
     renderApp("/topics/model-context-protocol");
@@ -316,6 +386,23 @@ describe("Topic Detail", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Unavailable")).toBeInTheDocument();
     expect(screen.getAllByText("Not collecting yet")).toHaveLength(3);
+    expect(
+      screen.getByRole("heading", { name: "Model Context Protocol" }),
+    ).toBeInTheDocument();
+  });
+
+  it("contains a Developer API failure to the Developer surface", async () => {
+    mockedGetDevelopment.mockRejectedValue(new Error("github offline"));
+    renderApp("/topics/model-context-protocol");
+
+    expect(
+      await screen.findByText(
+        "Developer observations are temporarily unavailable.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Retry Developer" }),
+    ).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Model Context Protocol" }),
     ).toBeInTheDocument();
