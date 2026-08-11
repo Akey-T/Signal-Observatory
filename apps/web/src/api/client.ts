@@ -2,10 +2,14 @@ import type {
   ArxivStatus,
   Category,
   GithubStatus,
+  CoverageListResponse,
+  CoverageQuery,
+  OperationsOverview,
   RegistryStatus,
   Topic,
   TopicListResponse,
   TopicDevelopment,
+  TopicCoverage,
   TopicResearch,
   TopicsQuery,
 } from "../types/api";
@@ -94,6 +98,37 @@ export function getDevelopment(
 ): Promise<TopicDevelopment> {
   return requestJson<TopicDevelopment>(
     `/topics/${encodeURIComponent(slug)}/development`,
+    signal,
+  );
+}
+
+export function getOperations(
+  signal?: AbortSignal,
+): Promise<OperationsOverview> {
+  return requestJson<OperationsOverview>("/operations", signal);
+}
+
+export function getCoverage(
+  query: CoverageQuery = {},
+  signal?: AbortSignal,
+): Promise<CoverageListResponse> {
+  const parameters = new URLSearchParams();
+  if (query.source) parameters.set("source", query.source);
+  if (query.status) parameters.set("status", query.status);
+  if (query.topic) parameters.set("topic", query.topic);
+  if (query.limit !== undefined) parameters.set("limit", String(query.limit));
+  if (query.offset !== undefined)
+    parameters.set("offset", String(query.offset));
+  const suffix = parameters.size > 0 ? `?${parameters.toString()}` : "";
+  return requestJson<CoverageListResponse>(`/coverage${suffix}`, signal);
+}
+
+export function getTopicCoverage(
+  slug: string,
+  signal?: AbortSignal,
+): Promise<TopicCoverage> {
+  return requestJson<TopicCoverage>(
+    `/topics/${encodeURIComponent(slug)}/coverage`,
     signal,
   );
 }

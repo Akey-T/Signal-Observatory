@@ -3,17 +3,23 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   getArxivStatus,
   getDevelopment,
+  getCoverage,
   getGithubStatus,
+  getOperations,
   getRegistryStatus,
   getResearch,
+  getTopicCoverage,
   getTopics,
 } from "./client";
 import {
   arxivStatus,
+  coverageList,
   githubStatus,
   makeTopic,
+  operationsOverview,
   registryStatus,
   topicResearch,
+  topicCoverage,
   topicDevelopment,
 } from "../test/fixtures";
 
@@ -116,5 +122,35 @@ describe("registry API client", () => {
       expect.objectContaining({ headers: { Accept: "application/json" } }),
     );
     expect(githubStatus).not.toHaveProperty("token");
+  });
+
+  it("loads Operations and encodes Coverage Ledger filters", async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce(responseWith(operationsOverview))
+      .mockResolvedValueOnce(responseWith(coverageList))
+      .mockResolvedValueOnce(responseWith(topicCoverage));
+    vi.stubGlobal("fetch", fetchMock);
+
+    await expect(getOperations()).resolves.toEqual(operationsOverview);
+    await expect(
+      getCoverage({
+        source: "arxiv",
+        status: "partial",
+        topic: "model context protocol",
+      }),
+    ).resolves.toEqual(coverageList);
+    await expect(getTopicCoverage("model context/protocol")).resolves.toEqual(
+      topicCoverage,
+    );
+
+    expect(String(fetchMock.mock.calls[0]?.[0])).toBe("/api/operations");
+    const coverageUrl = String(fetchMock.mock.calls[1]?.[0]);
+    expect(coverageUrl).toContain("source=arxiv");
+    expect(coverageUrl).toContain("status=partial");
+    expect(coverageUrl).toContain("topic=model+context+protocol");
+    expect(String(fetchMock.mock.calls[2]?.[0])).toBe(
+      "/api/topics/model%20context%2Fprotocol/coverage",
+    );
   });
 });

@@ -191,3 +191,103 @@ export type TopicDevelopment = {
   };
   top_repositories: DevelopmentRepository[];
 };
+
+export type CoverageStatus =
+  "complete" | "partial" | "forward_only" | "empty" | "unknown";
+
+export type CoverageItem = {
+  topic: {
+    id: string;
+    slug: string;
+    canonical_name: string;
+  };
+  source: string;
+  coverage_status: CoverageStatus;
+  coverage_strategy: string;
+  coverage_start: string | null;
+  coverage_end: string | null;
+  target_start: string | null;
+  target_end: string | null;
+  first_observed_at: string | null;
+  last_observed_at: string | null;
+  last_successful_run_at: string | null;
+  observation_count: number;
+  expected_observation_count: number | null;
+  missing_observation_count: number;
+  partial_reason: string | null;
+  freshness: "fresh" | "stale" | "very_stale" | "unknown";
+  derived_at: string;
+  derivation_version: string;
+  metadata: Record<string, unknown>;
+};
+
+export type CoverageListResponse = {
+  items: CoverageItem[];
+  total: number;
+  limit: number;
+  offset: number;
+  generated_at: string;
+  derivation_version: string;
+};
+
+export type TopicCoverage = {
+  topic: {
+    slug: string;
+    canonical_name: string;
+  };
+  channels: Array<{
+    channel: string;
+    label: string;
+    source: string;
+    collection_state: "collecting" | "not_started";
+    coverage: CoverageItem | null;
+  }>;
+  generated_at: string;
+};
+
+export type SourceOperationalHealth = {
+  source: string;
+  channel: string;
+  label: string;
+  display_name: string;
+  implemented: boolean;
+  enabled: boolean;
+  collector_state: string;
+  last_run_at: string | null;
+  last_successful_run_at: string | null;
+  latest_run_status: string | null;
+  active_mappings: number;
+  failed_mappings: number;
+  partial_mappings: number;
+  stale_mappings: number;
+  errors_last_run: number;
+  raw_responses_last_run: number;
+  freshness: string;
+  details: Record<string, unknown>;
+};
+
+export type OperationsOverview = {
+  overall_state: "healthy" | "degraded" | "failed" | "not_started";
+  explanation: string;
+  registry: Record<string, unknown>;
+  sources: SourceOperationalHealth[];
+  coverage_summary: Record<CoverageStatus, number>;
+  data_quality: {
+    ingestion_errors_last_24h: number;
+    partial_mappings: number;
+    stale_cursors: number;
+    missing_snapshot_dates: number;
+    raw_checksum_failures: number | null;
+    raw_integrity_state: string;
+    registry_warnings: number;
+  };
+  generated_at: string;
+};
+
+export type CoverageQuery = {
+  source?: string;
+  status?: CoverageStatus;
+  topic?: string;
+  limit?: number;
+  offset?: number;
+};

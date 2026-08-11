@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { MemoryRouter } from "react-router-dom";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -9,10 +9,13 @@ import {
   getArxivStatus,
   getCategories,
   getDevelopment,
+  getCoverage,
   getGithubStatus,
+  getOperations,
   getResearch,
   getRegistryStatus,
   getTopic,
+  getTopicCoverage,
   getTopics,
 } from "./api/client";
 import {
@@ -21,11 +24,14 @@ import {
   liveTopicResearch,
   githubStatus,
   liveTopicDevelopment,
+  coverageList,
   makeTopic,
   modelContextProtocol,
+  operationsOverview,
   registryStatus,
   topicResearch,
   topicDevelopment,
+  topicCoverage,
 } from "./test/fixtures";
 import type { TopicListResponse, TopicsQuery } from "./types/api";
 
@@ -42,23 +48,29 @@ vi.mock("./api/client", () => {
   return {
     ApiError: MockApiError,
     getCategories: vi.fn(),
+    getCoverage: vi.fn(),
     getArxivStatus: vi.fn(),
     getDevelopment: vi.fn(),
     getGithubStatus: vi.fn(),
+    getOperations: vi.fn(),
     getResearch: vi.fn(),
     getRegistryStatus: vi.fn(),
     getTopic: vi.fn(),
+    getTopicCoverage: vi.fn(),
     getTopics: vi.fn(),
   };
 });
 
 const mockedGetCategories = vi.mocked(getCategories);
+const mockedGetCoverage = vi.mocked(getCoverage);
 const mockedGetArxivStatus = vi.mocked(getArxivStatus);
 const mockedGetDevelopment = vi.mocked(getDevelopment);
 const mockedGetGithubStatus = vi.mocked(getGithubStatus);
+const mockedGetOperations = vi.mocked(getOperations);
 const mockedGetResearch = vi.mocked(getResearch);
 const mockedGetRegistryStatus = vi.mocked(getRegistryStatus);
 const mockedGetTopic = vi.mocked(getTopic);
+const mockedGetTopicCoverage = vi.mocked(getTopicCoverage);
 const mockedGetTopics = vi.mocked(getTopics);
 
 function topicResponse(
@@ -86,12 +98,15 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.stubGlobal("scrollTo", vi.fn());
   mockedGetCategories.mockResolvedValue(categories);
+  mockedGetCoverage.mockResolvedValue(coverageList);
   mockedGetArxivStatus.mockResolvedValue(arxivStatus);
   mockedGetDevelopment.mockResolvedValue(topicDevelopment);
   mockedGetGithubStatus.mockResolvedValue(githubStatus);
+  mockedGetOperations.mockResolvedValue(operationsOverview);
   mockedGetResearch.mockResolvedValue(topicResearch);
   mockedGetRegistryStatus.mockResolvedValue(registryStatus);
   mockedGetTopic.mockResolvedValue(modelContextProtocol);
+  mockedGetTopicCoverage.mockResolvedValue(topicCoverage);
   mockedGetTopics.mockResolvedValue(
     topicResponse(
       [
@@ -123,6 +138,11 @@ describe("Overview", () => {
     expect(
       screen.getByText(
         "arXiv + GitHub interfaces implemented · 2 channels pending",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "E03 soak · E04 cross-day pending · E04.5 operations online",
       ),
     ).toBeInTheDocument();
     expect(
@@ -284,6 +304,77 @@ describe("Topic Explorer", () => {
   });
 });
 
+describe("Operations", () => {
+  it("shows collector health, data quality and the truthful coverage matrix", async () => {
+    renderApp("/operations");
+
+    expect(
+      await screen.findByRole("heading", { name: "Observatory Operations" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Collection health, source coverage and data quality."),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Source Status")).toBeInTheDocument();
+    expect(screen.getByText("Coverage Matrix")).toBeInTheDocument();
+    expect(screen.getAllByText("Not collecting")).toHaveLength(2);
+    expect(screen.getAllByText("Partial").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Forward Only").length).toBeGreaterThan(0);
+    expect(screen.getByText("Raw checksum failures")).toBeInTheDocument();
+    expect(screen.getByText("Not verified")).toBeInTheDocument();
+    expect(screen.queryByText(/coverage \d+%/i)).not.toBeInTheDocument();
+  });
+
+  it("filters the coverage matrix by topic, source and coverage state", async () => {
+    const user = userEvent.setup();
+    renderApp("/operations");
+    await screen.findByText("Coverage Matrix");
+
+    await user.type(
+      screen.getByLabelText("Search coverage topics"),
+      "not present",
+    );
+    expect(
+      screen.getByText("No Topic × Source coverage matches these filters."),
+    ).toBeInTheDocument();
+
+    await user.clear(screen.getByLabelText("Search coverage topics"));
+    await user.selectOptions(
+      screen.getByLabelText("Coverage state"),
+      "partial",
+    );
+    expect(screen.getAllByText("Partial").length).toBeGreaterThan(0);
+    expect(
+      within(screen.getByRole("table")).queryByText("Forward Only"),
+    ).not.toBeInTheDocument();
+
+    await user.selectOptions(screen.getByLabelText("Coverage state"), "all");
+    await user.selectOptions(screen.getByLabelText("Source"), "github");
+    expect(
+      within(screen.getByRole("table")).getByText("Forward Only"),
+    ).toBeInTheDocument();
+  });
+
+  it("shows loading and explicit API error states", async () => {
+    mockedGetOperations.mockImplementation(() => new Promise(() => undefined));
+    mockedGetCoverage.mockImplementation(() => new Promise(() => undefined));
+    const loading = renderApp("/operations");
+    expect(
+      screen.getByText("Loading observatory operations"),
+    ).toBeInTheDocument();
+    loading.unmount();
+
+    mockedGetOperations.mockRejectedValue(new Error("offline"));
+    mockedGetCoverage.mockResolvedValue(coverageList);
+    renderApp("/operations");
+    expect(
+      await screen.findByText("Operational health could not be loaded."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("No health or coverage values have been substituted."),
+    ).toBeInTheDocument();
+  });
+});
+
 describe("Topic Detail", () => {
   it("shows configured Research as not collecting before its first successful run", async () => {
     renderApp("/topics/model-context-protocol");
@@ -294,6 +385,11 @@ describe("Topic Detail", () => {
     expect(screen.getByText("MCP")).toBeInTheDocument();
     expect(screen.getByText("MCP server")).toBeInTheDocument();
     expect(screen.getByText("Monitoring Channels")).toBeInTheDocument();
+    expect(screen.getByText("Data Coverage")).toBeInTheDocument();
+    expect(screen.getByText("View operations")).toHaveAttribute(
+      "href",
+      "/operations",
+    );
     expect(screen.getAllByText("Configured")).toHaveLength(4);
     expect(screen.getAllByText("Not collecting yet")).toHaveLength(4);
     expect(

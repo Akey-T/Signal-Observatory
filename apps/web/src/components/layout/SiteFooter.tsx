@@ -16,7 +16,7 @@ export function SiteFooter() {
         <Link className="site-footer__brand" to="/">
           Signal Observatory
         </Link>
-        <p>E00 · E01 · E02 · E03 complete · E04 validation in progress</p>
+        <p>E03 soak · E04 cross-day pending · E04.5 operations online</p>
       </div>
       <div className="site-footer__status">
         <span>{registryLabel}</span>

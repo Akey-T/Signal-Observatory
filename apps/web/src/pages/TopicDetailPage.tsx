@@ -2,6 +2,7 @@ import { Link, useParams } from "react-router-dom";
 
 import { ApiError } from "../api/client";
 import { PageError, PageLoading } from "../components/layout/PageState";
+import { TopicCoverageSection } from "../components/operations/TopicCoverageSection";
 import {
   LatestResearch,
   ResearchObservations,
@@ -13,6 +14,7 @@ import {
 import { SignalChannelCard } from "../components/signals/SignalChannelCard";
 import { useRegistry } from "../context/RegistryContext";
 import { useDocumentTitle } from "../hooks/useDocumentTitle";
+import { useTopicCoverageQuery } from "../hooks/useOperationsData";
 import {
   useDevelopmentQuery,
   useResearchQuery,
@@ -27,6 +29,7 @@ export function TopicDetailPage() {
   const topic = useTopicQuery(slug);
   const research = useResearchQuery(slug);
   const development = useDevelopmentQuery(slug);
+  const coverage = useTopicCoverageQuery(slug);
   const registry = useRegistry();
   useDocumentTitle(
     topic.data
@@ -205,6 +208,13 @@ export function TopicDetailPage() {
           </dl>
         </section>
       </div>
+
+      <TopicCoverageSection
+        data={coverage.data}
+        error={coverage.error}
+        loading={coverage.loading}
+        onRetry={coverage.retry}
+      />
 
       <section
         className="detail-section observations-section"

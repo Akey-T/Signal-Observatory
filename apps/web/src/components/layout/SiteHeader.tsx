@@ -28,6 +28,7 @@ export function SiteHeader() {
             Overview
           </NavLink>
           <NavLink to="/topics">Topics</NavLink>
+          <NavLink to="/operations">Operations</NavLink>
           <a href={apiDocsUrl} target="_blank" rel="noreferrer">
             API <span aria-hidden="true">↗</span>
           </a>
