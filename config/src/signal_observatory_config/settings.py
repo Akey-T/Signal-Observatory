@@ -207,6 +207,15 @@ class Settings(BaseSettings):
             raise ValueError("database URL must use psycopg PostgreSQL or SQLite")
         return value
 
+    @field_validator("github_token", mode="before")
+    @classmethod
+    def normalize_blank_github_token(cls, value: object) -> object:
+        """Treat an unset Compose interpolation as missing authentication."""
+
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
     def public_summary(self) -> dict[str, str]:
         """Return startup-safe values without credentials or other secrets."""
 
