@@ -2,7 +2,7 @@
 
 Signal Observatory 是一个长期运行的数据工程与趋势研究项目。它保存公开机器接口中的技术生态观测，构建可追溯、可重复计算的历史序列，用于研究技术从 Research → Developer Adoption → Community Attention → Public Attention 的传播过程。
 
-当前仓库完成 **E00 Project Foundation**、**E01 Data Infrastructure**、**E02 Topic Registry**、**E02.5 Topic Observatory Experience** 与 **E03 arXiv Research Collector**。**E04 GitHub Developer Collector 已实现并正在完成认证 Pilot 与连续快照验收**；在真实成功快照前，页面不会将 Developer 标为 Live。Trend Score、AI 摘要、自动 topic discovery 和完整 Dashboard 仍不在当前范围内。
+当前仓库完成 **E00 Project Foundation**、**E01 Data Infrastructure**、**E02 Topic Registry**、**E02.5 Topic Observatory Experience**、**E03 arXiv Research Collector** 与 **E04.5 Data Health & Coverage Ledger**。**E04 GitHub Developer Collector 已完成基线实现，但仍等待第二个真实 UTC 日期的快照验收**；E03 的七天调度 soak 也仍在进行。Trend Score、AI 摘要、自动 topic discovery 和业务趋势 Dashboard 仍不在当前范围内。
 
 ## 已实现
 
@@ -22,6 +22,10 @@ Signal Observatory 是一个长期运行的数据工程与趋势研究项目。�
 - 官方 GitHub REST API 认证客户端、Raw-first Repository discovery、numeric Repository identity、可解释 Topic match
 - 每日不可变 Repository Snapshot、ETag/304、Search/Core budget、保守限流与独立 weekly discovery/daily snapshot 调度
 - Developer Observation API、collector status、Repository evidence 列表，以及真实 live/degraded/zero-data 状态
+- Topic × Source Coverage Ledger，确定性区分 Complete、Partial、Forward only、Empty 与 Unknown
+- 统一的 Collector Health、Freshness、Data Quality 与 Observatory overall state
+- 只读 Raw integrity、GitHub 跨日和 arXiv 七天调度验收工具
+- `/operations` 工程运营页面、Coverage Matrix 与 Topic Detail 覆盖摘要
 
 ## 快速启动
 
@@ -41,6 +45,7 @@ Web 路由：
 - `/`：Registry Overview，动态展示 Registry 统计、3 个跨领域 Featured Topics、30 个 Supporting Topics、Topic Universe 和 Registry Health。
 - `/topics`：Topic Explorer，支持 Topic/Alias 搜索、Category/Status/Source 筛选、URL query state 和分页。
 - `/topics/:slug`：Topic Detail，展示 Canonical Topic、Aliases、Monitoring Priority、可读 Source Mapping，以及持久化 arXiv Research / GitHub Developer observations。
+- `/operations`：Operations，展示 Collector Health、Freshness、Data Quality、Coverage Matrix 与真实缺口。
 
 Web 只将拥有真实成功 cursor 的 arXiv mapping 标记为 **Research Live**，只将拥有真实成功 Repository Snapshot 的 GitHub mapping 标记为 **Developer Live**；失败后的历史数据以 **Degraded** 状态继续可读。`Configured` 仍只表示 Registry 中存在 Source Mapping。Hacker News 和 Wikipedia 为 **Not collecting yet**，页面不会展示没有持久化 Observation 支撑的 Trend、Growth、Momentum 或 Popularity。
 
@@ -111,6 +116,36 @@ signal-observatory github snapshot --topic model-context-protocol --json
 
 Discovery 默认每周执行、Snapshot 默认每天执行；两者使用独立 Search/Core budget。详细策略见
 [GitHub source 文档](docs/sources/github.md)。E04 认证 Pilot、至少 30 个 Repository 人工复核和第二个真实日快照完成前，仓库不会宣称 Developer 通道验收完成。
+
+## Operations 与 Coverage Ledger
+
+Operations 将“采集器最近是否正常运行”“数据是否新鲜”“历史覆盖是否完整”作为三个独立概念。
+Coverage 仅由持久化 Observation、Cursor 与 Run 确定性派生；重复 rebuild 不改变相同事实，GitHub
+历史从首次真实 Snapshot 开始并始终标为 `FORWARD_ONLY`。缺失日期不会被插值，页面也不展示没有
+严格分母定义的完整率或健康百分比。
+
+```powershell
+signal-observatory coverage rebuild --json
+signal-observatory coverage list --source arxiv --status partial
+signal-observatory coverage show --topic model-context-protocol --json
+signal-observatory ops check --json
+signal-observatory ops verify-raw --sample 100 --json
+signal-observatory github verify-cross-day --json
+signal-observatory arxiv verify-soak --days 7 --json
+```
+
+`ops check` 退出码：`0` healthy/acceptable，`1` degraded，`2` failed/action required，`3`
+configuration/database failure。`github verify-cross-day` 和 `arxiv verify-soak` 是只读验收工具；时间窗口
+不足时返回 `PENDING`，不会触发采集或修改数据。
+
+只读 API：
+
+- `GET /api/operations`
+- `GET /api/coverage?source=&status=&topic=&limit=&offset=`
+- `GET /api/topics/{slug}/coverage`
+
+详细语义见 [Data Health](docs/operations/data-health.md) 与
+[Coverage Ledger](docs/operations/coverage-ledger.md)。
 
 ## 数据库与质量检查
 

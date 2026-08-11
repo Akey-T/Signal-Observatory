@@ -62,6 +62,16 @@ These rules apply to the entire repository.
 56. Do not use contributor-level data unless a later Epic explicitly approves it.
 57. A missing daily Snapshot must remain observable as missing data.
 58. GitHub failures must not modify arXiv Research evidence.
+59. Never infer complete coverage solely from a successful latest run.
+60. Collector health and historical coverage are separate concepts.
+61. GitHub Snapshot history is forward-only from first observation.
+62. Missing observation dates must not be interpolated.
+63. Partial historical collection must remain visibly partial.
+64. Coverage status must be deterministic.
+65. Analytics must eventually consume coverage metadata.
+66. Coverage derivation must remain rebuildable.
+67. Do not use LLMs to decide completeness.
+68. Operations UI must not display fabricated percentage scores.
 
 ## Repository boundaries
 
