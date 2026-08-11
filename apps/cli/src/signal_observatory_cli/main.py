@@ -21,6 +21,12 @@ from arxiv_collector import (
     ArxivQueryService,
     ArxivRunSummary,
 )
+from github_collector import (
+    GithubCollectionError,
+    GithubCollectionService,
+    GithubQueryService,
+    GithubRunSummary,
+)
 from observatory_db.models import Topic, TopicStatus
 from observatory_db.session import create_database_engine
 from signal_observatory_config import Settings
@@ -38,8 +44,10 @@ DEFAULT_REGISTRY_PATH = Path("config/topics")
 app = typer.Typer(help="Signal Observatory operational commands.", no_args_is_help=True)
 topics_app = typer.Typer(help="Validate, synchronize, and inspect the curated Topic Registry.")
 arxiv_app = typer.Typer(help="Collect and inspect official arXiv metadata.")
+github_app = typer.Typer(help="Discover and snapshot public GitHub repositories.")
 app.add_typer(topics_app, name="topics")
 app.add_typer(arxiv_app, name="arxiv")
+app.add_typer(github_app, name="github")
 
 
 def _emit(payload: object, *, as_json: bool) -> None:
@@ -405,6 +413,163 @@ def arxiv_sample(
         payload = _with_session(as_json, operation)
     except ArxivCollectionError as error:
         _fail(str(error), code=EXIT_VALIDATION, as_json=as_json)
+    _emit(payload, as_json=as_json)
+
+
+def _emit_github_summary(summary: GithubRunSummary, *, as_json: bool) -> None:
+    if as_json:
+        _emit(summary.model_dump(mode="json"), as_json=True)
+        return
+    if summary.mode == "dry_run":
+        _emit(
+            "GitHub dry-run\n"
+            f"Auth configured:       {summary.auth_configured}\n"
+            f"Topics considered:     {summary.topics_considered}\n"
+            f"Planned operations:    {len(summary.planned_queries)}\n"
+            "No network, database, or Raw writes were performed.",
+            as_json=False,
+        )
+        return
+    _emit(
+        f"GitHub {summary.mode} complete\n\n"
+        f"Status:                 {summary.status}\n"
+        f"Requests:               {summary.requests_sent}\n"
+        f"Raw payloads:           {summary.raw_payloads_preserved}\n"
+        f"Repositories received:  {summary.repositories_received}\n"
+        f"New/existing repos:     {summary.new_repositories}/{summary.existing_repositories}\n"
+        f"Topic matches added:    {summary.topic_matches_added}\n"
+        f"Repositories due:       {summary.repositories_due}\n"
+        f"200/304/404 responses:  "
+        f"{summary.responses_200}/{summary.responses_304}/{summary.responses_404}\n"
+        f"Snapshots created:      {summary.snapshots_created}\n"
+        f"Errors:                 {summary.errors}",
+        as_json=False,
+    )
+
+
+def _github_error(error: GithubCollectionError, *, as_json: bool) -> NoReturn:
+    code = (
+        EXIT_CONFIGURATION
+        if "authentication is not configured" in str(error).casefold()
+        else EXIT_VALIDATION
+    )
+    _fail(str(error), code=code, as_json=as_json)
+
+
+@github_app.command("discover")
+def github_discover(
+    topics: Annotated[list[str] | None, typer.Option("--topic")] = None,
+    all_active: Annotated[bool, typer.Option("--all-active")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
+    max_results: Annotated[int | None, typer.Option("--max-results", min=1)] = None,
+    max_requests: Annotated[int | None, typer.Option("--max-requests", min=1)] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Discover bounded Repository candidates from explicit enabled mappings."""
+
+    if bool(topics) == all_active:
+        _fail(
+            "choose one or more --topic values or --all-active",
+            code=EXIT_VALIDATION,
+            as_json=as_json,
+        )
+
+    def operation(session: Session) -> GithubRunSummary:
+        return asyncio.run(
+            GithubCollectionService(session, Settings()).discover(
+                topic_slugs=topics if not all_active else None,
+                dry_run=dry_run,
+                max_results=max_results,
+                max_requests=max_requests,
+            )
+        )
+
+    try:
+        summary = _with_session(as_json, operation)
+    except GithubCollectionError as error:
+        _github_error(error, as_json=as_json)
+    _emit_github_summary(summary, as_json=as_json)
+
+
+@github_app.command("snapshot")
+def github_snapshot(
+    topics: Annotated[list[str] | None, typer.Option("--topic")] = None,
+    repositories: Annotated[list[int] | None, typer.Option("--repository")] = None,
+    all_tracked: Annotated[bool, typer.Option("--all-tracked")] = False,
+    dry_run: Annotated[bool, typer.Option("--dry-run")] = False,
+    max_requests: Annotated[int | None, typer.Option("--max-requests", min=1)] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Record one due daily Snapshot for selected tracked repositories."""
+
+    selections = int(bool(topics)) + int(bool(repositories)) + int(all_tracked)
+    if selections != 1:
+        _fail(
+            "choose --topic, --repository, or --all-tracked",
+            code=EXIT_VALIDATION,
+            as_json=as_json,
+        )
+
+    def operation(session: Session) -> GithubRunSummary:
+        return asyncio.run(
+            GithubCollectionService(session, Settings()).snapshot(
+                topic_slugs=topics,
+                repository_ids=repositories,
+                dry_run=dry_run,
+                max_requests=max_requests,
+            )
+        )
+
+    try:
+        summary = _with_session(as_json, operation)
+    except GithubCollectionError as error:
+        _github_error(error, as_json=as_json)
+    _emit_github_summary(summary, as_json=as_json)
+
+
+@github_app.command("status")
+def github_status(
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Show persisted GitHub collector state without contacting GitHub."""
+
+    payload: dict[str, object] = _with_session(
+        as_json, lambda session: GithubQueryService(session, Settings()).status()
+    )
+    if as_json:
+        _emit(payload, as_json=True)
+        return
+    _emit(
+        "GitHub collector status\n"
+        f"State: {payload['collector_state']}\n"
+        f"Auth configured: {payload['auth_configured']}\n"
+        f"Last discovery: {payload['last_discovery_at']}\n"
+        f"Last snapshot: {payload['last_snapshot_at']}\n"
+        f"Tracked repositories: {payload['tracked_repositories']}\n"
+        f"Snapshots: {payload['snapshots']}\n"
+        f"Last run errors: {payload['errors_last_run']}",
+        as_json=False,
+    )
+
+
+@github_app.command("sample")
+def github_sample(
+    topic: Annotated[str, typer.Option("--topic")],
+    limit: Annotated[int, typer.Option("--limit", min=1, max=100)] = 20,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Show deterministic discovered Repository samples for mapping review."""
+
+    def operation(session: Session) -> dict[str, object]:
+        service = GithubQueryService(session, Settings())
+        if not service.topic_exists(topic):
+            raise GithubCollectionError(f"topic not found: {topic}")
+        return {"topic_slug": topic, "limit": limit, "items": service.sample(topic, limit=limit)}
+
+    try:
+        payload = _with_session(as_json, operation)
+    except GithubCollectionError as error:
+        _github_error(error, as_json=as_json)
     _emit(payload, as_json=as_json)
 
 

@@ -12,6 +12,7 @@ from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from observatory_db.models import TopicStatus
+from signal_observatory_config import Settings
 from topic_registry.queries import TopicQueryService, topic_to_dict
 
 router = APIRouter(prefix="/api", tags=["topics"])
@@ -92,6 +93,16 @@ def database_session(request: Request) -> Iterator[Session]:
         )
     with Session(engine) as session:
         yield session
+
+
+def application_settings(request: Request) -> Settings:
+    settings: Settings | None = getattr(request.app.state, "settings", None)
+    if settings is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="application settings are not ready",
+        )
+    return settings
 
 
 @router.get("/topics", response_model=TopicListResponse)

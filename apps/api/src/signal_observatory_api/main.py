@@ -19,6 +19,7 @@ from observatory_db.session import (
     wait_for_database,
 )
 from signal_observatory_api import __version__
+from signal_observatory_api.development import router as development_router
 from signal_observatory_api.logging import configure_logging
 from signal_observatory_api.research import router as research_router
 from signal_observatory_api.sources import router as sources_router
@@ -65,7 +66,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     application.include_router(topics_router)
     application.include_router(research_router)
+    application.include_router(development_router)
     application.include_router(sources_router)
+    application.state.settings = runtime_settings
 
     @application.middleware("http")
     async def request_context(
