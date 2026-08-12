@@ -35,12 +35,20 @@ from observatory_db.models import Topic, TopicStatus
 from observatory_db.session import create_database_engine
 from observatory_operations import (
     ArxivSoakVerifier,
+    BackupCatalog,
+    BackupError,
+    BackupService,
+    BackupVerifier,
     CoverageDeriver,
     CoverageQueryService,
+    DisasterRecoveryDrill,
     GithubCrossDayVerifier,
     OperationsService,
     RawIntegrityVerifier,
+    RestoreError,
+    RestoreService,
 )
+from observatory_operations.postgres_backup import PostgresBackupTool, PostgresToolError
 from signal_observatory_config import Settings
 from topic_registry.diff import RegistryDiff
 from topic_registry.loader import TopicRegistryLoader, TopicRegistryValidationError
@@ -59,11 +67,13 @@ arxiv_app = typer.Typer(help="Collect and inspect official arXiv metadata.")
 github_app = typer.Typer(help="Discover and snapshot public GitHub repositories.")
 coverage_app = typer.Typer(help="Rebuild and inspect deterministic data coverage.")
 ops_app = typer.Typer(help="Inspect operational health and immutable Raw integrity.")
+backup_app = typer.Typer(help="Create, verify, restore, and drill full recovery units.")
 app.add_typer(topics_app, name="topics")
 app.add_typer(arxiv_app, name="arxiv")
 app.add_typer(github_app, name="github")
 app.add_typer(coverage_app, name="coverage")
 app.add_typer(ops_app, name="ops")
+app.add_typer(backup_app, name="backup")
 
 
 def _emit(payload: object, *, as_json: bool) -> None:
@@ -84,6 +94,159 @@ def _fail(message: str, *, code: int, as_json: bool, details: object | None = No
     )
     _emit(payload, as_json=as_json)
     raise typer.Exit(code)
+
+
+def _backup_settings(*, as_json: bool) -> Settings:
+    try:
+        return Settings()
+    except ValidationError as error:
+        _fail(
+            "invalid application configuration",
+            code=3,
+            as_json=as_json,
+            details=error.errors(include_url=False, include_input=False),
+        )
+
+
+def _backup_root(settings: Settings, output: Path | None) -> Path:
+    return (output or settings.backup_path).resolve()
+
+
+def _backup_failure(error: Exception, *, as_json: bool, code: int = 3) -> NoReturn:
+    _fail(
+        str(error),
+        code=code,
+        as_json=as_json,
+        details={"type": type(error).__name__},
+    )
+
+
+@backup_app.command("create")
+def backup_create(
+    output: Annotated[Path | None, typer.Option("--output")] = None,
+    label: Annotated[str | None, typer.Option("--label", max=200)] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Create and fully verify one atomic PostgreSQL + Raw + Registry backup."""
+
+    settings = _backup_settings(as_json=as_json)
+    try:
+        payload = BackupService(settings, repository_root=Path.cwd()).create(
+            output=output,
+            label=label,
+        )
+    except (BackupError, PostgresToolError, OSError) as error:
+        _backup_failure(error, as_json=as_json)
+    _emit(payload, as_json=as_json)
+    verification = payload["verification"]
+    assert isinstance(verification, dict)
+    if verification.get("result") == "warning":
+        raise typer.Exit(1)
+
+
+@backup_app.command("list")
+def backup_list(
+    output: Annotated[Path | None, typer.Option("--output")] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """List published backup manifests without inspecting mutable staging data."""
+
+    settings = _backup_settings(as_json=as_json)
+    items = [
+        manifest.model_dump(mode="json")
+        for manifest in BackupCatalog(_backup_root(settings, output)).list()
+    ]
+    _emit({"items": items, "total": len(items)}, as_json=as_json)
+
+
+@backup_app.command("show")
+def backup_show(
+    backup_id: Annotated[str, typer.Argument()],
+    output: Annotated[Path | None, typer.Option("--output")] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Show one strictly validated backup manifest."""
+
+    settings = _backup_settings(as_json=as_json)
+    manifest = BackupCatalog(_backup_root(settings, output)).show(backup_id)
+    if manifest is None:
+        _fail("backup not found or manifest invalid", code=2, as_json=as_json)
+    _emit(manifest.model_dump(mode="json"), as_json=as_json)
+
+
+@backup_app.command("verify")
+def backup_verify(
+    backup_id: Annotated[str, typer.Argument()],
+    output: Annotated[Path | None, typer.Option("--output")] = None,
+    full: Annotated[bool, typer.Option("--full")] = False,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Fully verify dump, Registry, Raw manifest, sidecars, and byte checksums."""
+
+    del full  # Every verification is full; the flag documents operator intent.
+    settings = _backup_settings(as_json=as_json)
+    root = _backup_root(settings, output)
+    if BackupCatalog(root).show(backup_id) is None:
+        _fail("backup not found or manifest invalid", code=2, as_json=as_json)
+    try:
+        tool = PostgresBackupTool.discover(Path.cwd())
+        report = BackupVerifier(tool).verify(root / backup_id)
+    except (PostgresToolError, OSError) as error:
+        _backup_failure(error, as_json=as_json)
+    _emit(report.model_dump(mode="json"), as_json=as_json)
+    if report.result == "warning":
+        raise typer.Exit(1)
+    if report.result == "fail":
+        raise typer.Exit(2)
+
+
+@backup_app.command("restore")
+def backup_restore(
+    backup_id: Annotated[str, typer.Argument()],
+    database_url: Annotated[str, typer.Option("--database-url")],
+    raw_dir: Annotated[Path, typer.Option("--raw-dir")],
+    output: Annotated[Path | None, typer.Option("--output")] = None,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Restore one verified backup into explicit, empty, non-production targets."""
+
+    settings = _backup_settings(as_json=as_json)
+    root = _backup_root(settings, output)
+    if BackupCatalog(root).show(backup_id) is None:
+        _fail("backup not found or manifest invalid", code=2, as_json=as_json)
+    try:
+        report = RestoreService(settings, repository_root=Path.cwd()).restore(
+            root / backup_id,
+            database_url=database_url,
+            raw_dir=raw_dir,
+        )
+    except (RestoreError, PostgresToolError, OSError) as error:
+        _backup_failure(error, as_json=as_json)
+    _emit(report.model_dump(mode="json"), as_json=as_json)
+
+
+@backup_app.command("drill")
+def backup_drill(
+    backup_id: Annotated[str, typer.Argument()],
+    output: Annotated[Path | None, typer.Option("--output")] = None,
+    keep_on_failure: Annotated[bool, typer.Option("--keep-on-failure")] = False,
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Run an isolated restore drill and clean its temporary targets automatically."""
+
+    settings = _backup_settings(as_json=as_json)
+    root = _backup_root(settings, output)
+    if BackupCatalog(root).show(backup_id) is None:
+        _fail("backup not found or manifest invalid", code=2, as_json=as_json)
+    settings = settings.model_copy(update={"backup_path": root})
+    try:
+        payload = DisasterRecoveryDrill(settings, repository_root=Path.cwd()).run(
+            root / backup_id,
+            keep_on_failure=keep_on_failure,
+        )
+    except (RestoreError, PostgresToolError, OSError, SQLAlchemyError) as error:
+        _backup_failure(error, as_json=as_json)
+    _emit(payload, as_json=as_json)
 
 
 def _load(path: Path, *, as_json: bool) -> LoadedRegistry:

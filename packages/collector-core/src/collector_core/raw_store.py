@@ -143,6 +143,49 @@ class LocalRawStore:
         for metadata_path in sorted(source_root.glob("*/*/*/*/metadata.json")):
             yield self.load(metadata_path.parent)
 
+    def logical_key(self, directory: str | Path, *, source: str) -> str:
+        """Return a portable Raw identity relative to this store's root."""
+
+        self._validate_source(source)
+        candidate = Path(directory)
+        try:
+            relative = candidate.resolve().relative_to(self.root.resolve())
+        except ValueError:
+            parts = candidate.parts
+            try:
+                source_index = next(index for index, part in enumerate(parts) if part == source)
+            except StopIteration as error:
+                raise ValueError(f"Raw path is outside the configured root: {candidate}") from error
+            relative = Path(*parts[source_index:])
+        if relative.parts[0] != source or ".." in relative.parts:
+            raise ValueError(f"invalid Raw logical key: {relative}")
+        return relative.as_posix()
+
+    def resolve_key(self, raw_path: str | Path, *, source: str) -> Path:
+        """Resolve logical keys and legacy absolute pointers under the configured root."""
+
+        self._validate_source(source)
+        persisted = Path(raw_path)
+        if persisted.is_absolute():
+            try:
+                persisted.resolve().relative_to(self.root.resolve())
+            except ValueError:
+                pass
+            else:
+                return persisted.resolve()
+        parts = persisted.parts
+        try:
+            source_index = next(index for index, part in enumerate(parts) if part == source)
+        except StopIteration as error:
+            raise ValueError(f"Raw pointer has no {source!r} source segment") from error
+        relative = Path(*parts[source_index:])
+        resolved = (self.root / relative).resolve()
+        try:
+            resolved.relative_to(self.root.resolve())
+        except ValueError as error:
+            raise ValueError("Raw pointer escapes the configured root") from error
+        return resolved
+
     @staticmethod
     def _write_payload(path: Path, payload: bytes) -> None:
         with path.open("xb") as raw_file:

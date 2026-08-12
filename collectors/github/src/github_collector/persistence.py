@@ -9,7 +9,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from collector_core.raw_store import RawRecord
+from collector_core.raw_store import LocalRawStore, RawRecord
 from github_collector.models import GithubHTTPResponse, GithubRepositoryData
 from observatory_db.github_models import (
     GithubMatchMethod,
@@ -37,8 +37,11 @@ class GithubPersistence:
         mapping: TopicSourceMapping | None = None,
         repository: GithubRepository | None = None,
     ) -> GithubRawResponse:
+        raw_path = LocalRawStore(raw_record.directory.parents[4]).logical_key(
+            raw_record.directory, source=raw_record.source
+        )
         existing = self.session.scalar(
-            select(GithubRawResponse).where(GithubRawResponse.raw_path == str(raw_record.directory))
+            select(GithubRawResponse).where(GithubRawResponse.raw_path == raw_path)
         )
         if existing is not None:
             return existing
@@ -49,7 +52,7 @@ class GithubPersistence:
             topic_id=mapping.topic_id if mapping is not None else None,
             source_mapping_id=mapping.id if mapping is not None else None,
             endpoint_type=response.request.endpoint_type,
-            raw_path=str(raw_record.directory),
+            raw_path=raw_path,
             payload_checksum=raw_record.sha256,
             observed_at=response.requested_at,
             request_url_hash=hashlib.sha256(response.request.url.encode("utf-8")).hexdigest(),

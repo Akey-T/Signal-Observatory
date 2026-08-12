@@ -281,7 +281,33 @@ export type OperationsOverview = {
     raw_integrity_state: string;
     registry_warnings: number;
   };
+  data_protection: {
+    latest_backup: BackupSummary | null;
+    latest_verified_backup: BackupSummary | null;
+    latest_verified_backup_age_seconds: number | null;
+    latest_restore_drill: RestoreDrillSummary | null;
+  };
   generated_at: string;
+};
+
+export type BackupSummary = {
+  backup_id: string;
+  label: string | null;
+  completed_at: string;
+  verification_state: "unverified" | "pass" | "warning" | "fail";
+  migration_head: string;
+  database_size_bytes: number;
+  raw_objects: number;
+  raw_size_bytes: number;
+  total_backup_bytes: number;
+  registry_version: number | null;
+};
+
+export type RestoreDrillSummary = {
+  backup_id: string;
+  restore_completed_at: string;
+  result: "pass" | "fail";
+  duration_ms: number;
 };
 
 export type CoverageQuery = {

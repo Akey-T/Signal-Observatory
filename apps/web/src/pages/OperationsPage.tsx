@@ -12,6 +12,7 @@ import type {
   CoverageItem,
   CoverageStatus,
   SourceOperationalHealth,
+  OperationsOverview,
 } from "../types/api";
 
 const coverageOptions: Array<CoverageStatus | "all"> = [
@@ -131,6 +132,120 @@ function SourceCard({
   );
 }
 
+function formatBytes(value: number): string {
+  if (value < 1024) return `${value} B`;
+  const units = ["KB", "MB", "GB", "TB"];
+  let amount = value / 1024;
+  let unit = units[0];
+  for (const candidate of units.slice(1)) {
+    if (amount < 1024) break;
+    amount /= 1024;
+    unit = candidate;
+  }
+  return `${amount.toFixed(amount >= 10 ? 1 : 2)} ${unit}`;
+}
+
+function formatAge(seconds: number): string {
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} minutes`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)} hours`;
+  return `${Math.floor(seconds / 86400)} days`;
+}
+
+function DataProtectionSection({
+  data,
+}: {
+  data: OperationsOverview["data_protection"];
+}) {
+  const verified = data.latest_verified_backup;
+  const latest = data.latest_backup;
+  const drill = data.latest_restore_drill;
+  const backupState = latest?.verification_state ?? "unverified";
+  const stateClass =
+    backupState === "pass"
+      ? "healthy"
+      : backupState === "warning"
+        ? "degraded"
+        : backupState === "fail"
+          ? "failed"
+          : "not_initialized";
+
+  return (
+    <section
+      className="operations-section data-protection"
+      aria-labelledby="data-protection-title"
+    >
+      <div className="operations-section__heading">
+        <div>
+          <p className="kicker">Recovery unit</p>
+          <h2 id="data-protection-title">Data Protection</h2>
+        </div>
+        <p>
+          PostgreSQL, immutable Raw, Registry configuration and provenance are
+          verified together.
+        </p>
+      </div>
+      {!verified ? (
+        <div className="data-protection__empty">
+          <h3>No verified backup yet.</h3>
+          <p>
+            Operations will report real backup evidence after a verified run.
+          </p>
+        </div>
+      ) : (
+        <dl className="data-protection__grid">
+          <div>
+            <dt>Latest verified backup</dt>
+            <dd>{formatRegistryDate(verified.completed_at)}</dd>
+            <small>{verified.backup_id}</small>
+          </div>
+          <div>
+            <dt>Verification</dt>
+            <dd>
+              <span className={`health-state health-state--${stateClass}`}>
+                {titleCase(backupState)}
+              </span>
+            </dd>
+            <small>
+              Age {formatAge(data.latest_verified_backup_age_seconds ?? 0)}
+            </small>
+          </div>
+          <div>
+            <dt>Recovery payload</dt>
+            <dd>{formatBytes(verified.total_backup_bytes)}</dd>
+            <small>
+              DB {formatBytes(verified.database_size_bytes)} · Raw{" "}
+              {verified.raw_objects} objects
+            </small>
+          </div>
+          <div>
+            <dt>Latest restore drill</dt>
+            <dd
+              className={
+                drill?.result === "fail"
+                  ? "data-protection__failure"
+                  : undefined
+              }
+            >
+              {drill ? titleCase(drill.result) : "Not run"}
+            </dd>
+            <small>
+              {drill
+                ? formatRegistryDate(drill.restore_completed_at)
+                : "No restore drill recorded."}
+            </small>
+          </div>
+        </dl>
+      )}
+      {latest?.verification_state === "fail" ? (
+        <p className="data-protection__alert">
+          The latest backup failed verification. The previous verified backup
+          remains the recovery candidate.
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
 export function OperationsPage() {
   const operations = useOperationsQuery();
   const coverage = useCoverageQuery({ limit: 1000 });
@@ -220,6 +335,8 @@ export function OperationsPage() {
         </div>
         <p>{data.explanation}</p>
       </section>
+
+      <DataProtectionSection data={data.data_protection} />
 
       <section className="operations-section" aria-labelledby="sources-title">
         <div className="operations-section__heading">

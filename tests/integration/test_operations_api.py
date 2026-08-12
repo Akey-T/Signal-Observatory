@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from pathlib import Path
 
 import httpx
 import pytest
@@ -27,6 +28,7 @@ from signal_observatory_config import Settings
 @pytest.mark.asyncio
 async def test_operations_and_coverage_endpoints_are_truthful(
     migrated_engine: Engine,
+    tmp_path: Path,
 ) -> None:
     now = datetime(2026, 8, 11, 9, tzinfo=UTC)
     with Session(migrated_engine) as session:
@@ -116,6 +118,7 @@ async def test_operations_and_coverage_endpoints_are_truthful(
         database_url=str(migrated_engine.url),
         environment="test",
         github_token=SecretStr("fixture-token"),
+        backup_path=tmp_path / "backups",
     )
     application = create_app(settings)
     application.state.engine = migrated_engine
@@ -135,6 +138,12 @@ async def test_operations_and_coverage_endpoints_are_truthful(
     assert operations_payload["coverage_summary"]["forward_only"] == 1
     assert operations_payload["data_quality"]["partial_mappings"] == 1
     assert operations_payload["data_quality"]["raw_checksum_failures"] is None
+    assert operations_payload["data_protection"] == {
+        "latest_backup": None,
+        "latest_verified_backup": None,
+        "latest_verified_backup_age_seconds": None,
+        "latest_restore_drill": None,
+    }
 
     assert coverage.status_code == 200
     assert coverage.json()["total"] == 1

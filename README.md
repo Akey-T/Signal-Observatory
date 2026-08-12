@@ -1,5 +1,20 @@
 # Signal Observatory
 
+E04.5B adds verified full recovery units for PostgreSQL, immutable Raw, Registry configuration,
+and provenance. Operator commands are documented in
+[`docs/operations/backup-restore.md`](docs/operations/backup-restore.md). A typical local cycle is:
+
+```powershell
+signal-observatory backup create --label "operator checkpoint" --json
+signal-observatory backup list --json
+signal-observatory backup verify <backup-id> --full --json
+signal-observatory backup drill <backup-id> --json
+```
+
+The Operations page reports the latest verified backup and restore drill. It is read-only. Backups
+under `data/backups/` are intentionally ignored by Git and a same-disk copy is not sufficient as
+the only disaster-recovery copy.
+
 Signal Observatory 是一个长期运行的数据工程与趋势研究项目。它保存公开机器接口中的技术生态观测，构建可追溯、可重复计算的历史序列，用于研究技术从 Research → Developer Adoption → Community Attention → Public Attention 的传播过程。
 
 当前仓库完成 **E00 Project Foundation**、**E01 Data Infrastructure**、**E02 Topic Registry**、**E02.5 Topic Observatory Experience**、**E03 arXiv Research Collector** 与 **E04.5 Data Health & Coverage Ledger**。**E04 GitHub Developer Collector 已完成基线实现，但仍等待第二个真实 UTC 日期的快照验收**；E03 的七天调度 soak 也仍在进行。Trend Score、AI 摘要、自动 topic discovery 和业务趋势 Dashboard 仍不在当前范围内。

@@ -52,6 +52,10 @@ def test_coverage_and_read_only_operations_commands(
     cross_day = runner.invoke(app, ["github", "verify-cross-day", "--json"])
     soak = runner.invoke(app, ["arxiv", "verify-soak", "--days", "7", "--json"])
     raw = runner.invoke(app, ["ops", "verify-raw", "--json"])
+    backups = runner.invoke(
+        app,
+        ["backup", "list", "--output", str(migrated_engine.url.database) + "-backups", "--json"],
+    )
 
     assert rebuild.exit_code == 0
     assert json.loads(rebuild.stdout)["created"] == 2
@@ -69,3 +73,5 @@ def test_coverage_and_read_only_operations_commands(
     assert json.loads(soak.stdout)["status"] == "pending"
     assert raw.exit_code == 0
     assert json.loads(raw.stdout)["state"] == "not_initialized"
+    assert backups.exit_code == 0
+    assert json.loads(backups.stdout) == {"items": [], "total": 0}

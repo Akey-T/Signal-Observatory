@@ -72,6 +72,20 @@ These rules apply to the entire repository.
 66. Coverage derivation must remain rebuildable.
 67. Do not use LLMs to decide completeness.
 68. Operations UI must not display fabricated percentage scores.
+69. PostgreSQL, immutable Raw, Registry configuration, and provenance form one recovery unit.
+70. A published backup must contain a custom-format PostgreSQL dump and a checksummed Raw copy.
+71. Never publish an unverified or failed backup from staging.
+72. Backup manifests and reports must never contain credentials or authentication tokens.
+73. Backup identifiers and evidence timestamps must use UTC.
+74. Raw paths persisted in the database must be portable logical keys, not machine-local paths.
+75. Backup creation must dump the database before copying Raw.
+76. Raw records newer than the database snapshot must be reported as extras, never hidden.
+77. Restore targets must be explicit, empty, and distinct from active Observatory storage.
+78. Restore tooling must never offer an overwrite or force mode.
+79. Restore verification must compare exact table counts, migration head, Registry, Raw, and lineage.
+80. Disaster-recovery drills must use isolated PostgreSQL and Raw targets.
+81. A backup on the same physical disk is not the sole acceptable disaster-recovery copy.
+82. E03 soak and E04 cross-day evidence must remain independent from backup acceptance evidence.
 
 ## Repository boundaries
 
@@ -83,6 +97,8 @@ These rules apply to the entire repository.
   `collectors/github/` owns E04 GitHub logic.
 - `config/topics/` is the administrative source of truth for curated Topics.
 - `data/raw/` is runtime state and must never be edited in place.
+- `data/backups/` is ignored runtime state; only manifests/reports quoted in acceptance docs are
+  versioned.
 - Gold analytics are interfaces only until their persisted inputs and metric definitions exist.
 
 ## Required checks

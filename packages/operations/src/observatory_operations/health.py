@@ -34,6 +34,7 @@ from observatory_db.models import (
     TopicSourceMapping,
     TopicStatus,
 )
+from observatory_operations.backup import BackupCatalog
 from observatory_operations.coverage import CoverageQueryService
 from observatory_operations.models import (
     CollectorState,
@@ -85,6 +86,9 @@ class OperationsService:
             "sources": sources,
             "coverage_summary": coverage_summary,
             "data_quality": data_quality,
+            "data_protection": BackupCatalog(self.settings.backup_path)
+            .status(now=self.now)
+            .model_dump(mode="json"),
             "generated_at": self.now,
         }
 

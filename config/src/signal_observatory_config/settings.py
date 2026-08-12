@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     database_connect_attempts: int = Field(default=10, ge=1, le=100)
     database_connect_delay_seconds: float = Field(default=2.0, ge=0, le=60)
     raw_data_path: Path = Path("data/raw")
+    backup_path: Path = Path("data/backups")
     worker_ready_file: Path = Path(".signal-worker-ready")
     arxiv_api_base_url: str = Field(
         default="https://export.arxiv.org/api/query",

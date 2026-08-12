@@ -20,3 +20,4 @@ Thumbs.db
 # Bronze data is local runtime state. Keep only the directory marker.
 data/raw/*
 !data/raw/.gitkeep
+data/backups/

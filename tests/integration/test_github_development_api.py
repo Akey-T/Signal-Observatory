@@ -155,7 +155,7 @@ async def test_development_api_states_aggregates_delta_and_full_provenance(
         assert run is not None
         assert raw is not None
         assert raw.payload_checksum == evidence["raw_checksum"]
-        assert LocalRawStore(tmp_path).read(LocalRawStore(tmp_path).load(raw.raw_path))
+        assert LocalRawStore(tmp_path).read(LocalRawStore(tmp_path).load(tmp_path / raw.raw_path))
 
         last_run = session.get(IngestionRun, second_snapshot.run_id)
         assert last_run is not None

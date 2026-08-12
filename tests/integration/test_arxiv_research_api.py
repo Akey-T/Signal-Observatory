@@ -171,7 +171,7 @@ async def test_research_api_states_summary_latest_papers_and_provenance(
         assert run is not None
         assert raw is not None
         assert raw.payload_checksum == api_paper["raw_checksum"]
-        raw_record = LocalRawStore(tmp_path).load(raw.raw_path)
+        raw_record = LocalRawStore(tmp_path).load(tmp_path / raw.raw_path)
         assert LocalRawStore(tmp_path).read(raw_record).startswith(b"<?xml")
 
         cursor = session.scalar(

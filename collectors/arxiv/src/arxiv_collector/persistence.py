@@ -16,7 +16,7 @@ from arxiv_collector.models import (
     ParsedArxivFeed,
     PersistenceCounts,
 )
-from collector_core import RawRecord
+from collector_core import LocalRawStore, RawRecord
 from observatory_db.arxiv_models import (
     ArxivAuthor,
     ArxivCategory,
@@ -50,7 +50,9 @@ class ArxivPersistence:
         response: ArxivHTTPResponse,
         request_metadata: Mapping[str, Any],
     ) -> ArxivRawResponse:
-        raw_path = str(raw.directory.resolve())
+        raw_path = LocalRawStore(raw.directory.parents[4]).logical_key(
+            raw.directory, source=raw.source
+        )
         existing = self.session.scalar(
             select(ArxivRawResponse).where(ArxivRawResponse.raw_path == raw_path)
         )

@@ -101,3 +101,38 @@ def test_source_name_cannot_escape_store_root(tmp_path: Path) -> None:
             collector_version="1.0.0",
             schema_version="1",
         )
+
+
+def test_raw_logical_keys_are_portable_across_roots(tmp_path: Path) -> None:
+    source_root = tmp_path / "source"
+    restored_root = tmp_path / "restored"
+    record = LocalRawStore(source_root).write(
+        source="arxiv",
+        payload=b"portable",
+        request_timestamp=datetime(2026, 8, 12, tzinfo=UTC),
+        collector_version="1.0.0",
+        schema_version="1",
+    )
+
+    key = LocalRawStore(source_root).logical_key(record.directory, source="arxiv")
+    expected = Path(key)
+    (restored_root / expected.parent).mkdir(parents=True)
+    os.rename(record.directory, restored_root / expected)
+
+    resolved = LocalRawStore(restored_root).resolve_key(key, source="arxiv")
+    assert resolved == (restored_root / expected).resolve()
+    restored_store = LocalRawStore(restored_root)
+    assert restored_store.read(restored_store.load(resolved)) == b"portable"
+
+
+def test_legacy_absolute_raw_pointer_is_rebased_not_trusted(tmp_path: Path) -> None:
+    root = tmp_path / "raw"
+    legacy = Path("/app/data/raw/arxiv/2026/08/12/record")
+
+    assert (
+        LocalRawStore(root).resolve_key(legacy, source="arxiv")
+        == (root / "arxiv" / "2026" / "08" / "12" / "record").resolve()
+    )
+
+    with pytest.raises(ValueError, match="source segment"):
+        LocalRawStore(root).resolve_key("unscoped/record", source="arxiv")

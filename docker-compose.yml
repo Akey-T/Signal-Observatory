@@ -29,6 +29,7 @@ services:
       SIGNAL_LOG_LEVEL: INFO
       SIGNAL_DATABASE_URL: postgresql+psycopg://signal:signal@db:5432/signal_observatory
       SIGNAL_RAW_DATA_PATH: /app/data/raw
+      SIGNAL_BACKUP_PATH: /app/data/backups
       ARXIV_MIN_REQUEST_INTERVAL_SECONDS: "3.0"
       GITHUB_TOKEN: ${GITHUB_TOKEN:-}
       GITHUB_API_VERSION: ${GITHUB_API_VERSION:-2022-11-28}
@@ -41,6 +42,7 @@ services:
       - "8000:8000"
     volumes:
       - ./data/raw:/app/data/raw
+      - ./data/backups:/app/data/backups
     depends_on:
       db:
         condition: service_healthy

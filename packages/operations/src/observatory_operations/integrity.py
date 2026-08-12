@@ -48,16 +48,7 @@ class RawIntegrityVerifier:
         for pointer in pointers:
             path = self.resolve_path(pointer.raw_path, pointer.source)
             try:
-                if not path.is_dir():
-                    raise FileNotFoundError("DB Raw pointer directory does not exist")
-                if not (path / "metadata.json").is_file():
-                    raise FileNotFoundError("metadata sidecar does not exist")
-                if not (path / "payload.gz").is_file():
-                    raise FileNotFoundError("compressed payload does not exist")
-                record = self.raw_store.load(path)
-                if record.sha256 != pointer.checksum:
-                    raise DataIntegrityError("DB checksum does not match the Raw metadata sidecar")
-                self.raw_store.read(record)
+                self.verify_raw_directory(path, expected_checksum=pointer.checksum)
             except (OSError, KeyError, TypeError, ValueError, DataIntegrityError) as error:
                 failures.append(
                     {
@@ -86,15 +77,23 @@ class RawIntegrityVerifier:
         }
 
     def resolve_path(self, raw_path: str, source: str) -> Path:
-        persisted = Path(raw_path)
-        if persisted.exists():
-            return persisted
-        parts = persisted.parts
-        try:
-            source_index = next(index for index, part in enumerate(parts) if part == source)
-        except StopIteration:
-            return persisted
-        return self.raw_root.joinpath(*parts[source_index:])
+        return self.raw_store.resolve_key(raw_path, source=source)
+
+    @staticmethod
+    def verify_raw_directory(path: Path, *, expected_checksum: str | None = None) -> None:
+        """Apply the shared immutable Raw integrity rules to one record directory."""
+
+        if not path.is_dir():
+            raise FileNotFoundError("Raw pointer directory does not exist")
+        if not (path / "metadata.json").is_file():
+            raise FileNotFoundError("metadata sidecar does not exist")
+        if not (path / "payload.gz").is_file():
+            raise FileNotFoundError("compressed payload does not exist")
+        store = LocalRawStore(path.parent)
+        record = store.load(path)
+        if expected_checksum is not None and record.sha256 != expected_checksum:
+            raise DataIntegrityError("expected checksum does not match the Raw metadata sidecar")
+        store.read(record)
 
     def _pointers(
         self, *, source: str | None, sample: int, full: bool
