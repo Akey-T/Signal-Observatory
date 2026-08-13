@@ -113,9 +113,16 @@ class CoverageDeriver:
             elif source_name == "github":
                 projections.append(self._derive_github(group))
 
+        handled_source_ids = set(
+            self.session.scalars(select(Source.id).where(Source.name.in_(SUPPORTED_SOURCES))).all()
+        )
         existing = {
             (item.topic_id, item.source_id): item
-            for item in self.session.scalars(select(TopicSourceCoverage)).all()
+            for item in self.session.scalars(
+                select(TopicSourceCoverage).where(
+                    TopicSourceCoverage.source_id.in_(handled_source_ids)
+                )
+            ).all()
         }
         expected_keys: set[tuple[UUID, UUID]] = set()
         created = updated = unchanged = 0

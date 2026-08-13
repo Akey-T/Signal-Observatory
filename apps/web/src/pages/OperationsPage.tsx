@@ -393,6 +393,14 @@ export function OperationsPage() {
             <dt>Registry warnings</dt>
             <dd>{data.data_quality.registry_warnings}</dd>
           </div>
+          <div>
+            <dt>Missed schedules · 24h</dt>
+            <dd>{data.data_quality.scheduler_missed_last_24h}</dd>
+          </div>
+          <div>
+            <dt>Interrupted schedules · 24h</dt>
+            <dd>{data.data_quality.scheduler_interrupted_last_24h}</dd>
+          </div>
         </dl>
       </section>
 

@@ -36,6 +36,15 @@ class IngestionStatus(StrEnum):
     CANCELLED = "cancelled"
 
 
+class SchedulerExecutionStatus(StrEnum):
+    SCHEDULED = "scheduled"
+    RUNNING = "running"
+    SUCCEEDED = "succeeded"
+    FAILED = "failed"
+    MISSED = "missed"
+    INTERRUPTED = "interrupted"
+
+
 class QualityStatus(StrEnum):
     PASSED = "passed"
     FAILED = "failed"
@@ -283,6 +292,40 @@ class TopicRegistryAuditLog(Base):
     timestamp: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
 
     version: Mapped[TopicRegistryVersion] = relationship(back_populates="audit_entries")
+
+
+class SchedulerExecution(Base):
+    """Durable truth for one expected scheduler window."""
+
+    __tablename__ = "scheduler_executions"
+    __table_args__ = (
+        UniqueConstraint("job_name", "scheduled_at", name="uq_scheduler_execution_window"),
+        Index("ix_scheduler_executions_job_scheduled", "job_name", "scheduled_at"),
+        Index("ix_scheduler_executions_status_scheduled", "status", "scheduled_at"),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    job_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    source_name: Mapped[str] = mapped_column(String(100), nullable=False)
+    scheduled_at: Mapped[datetime] = mapped_column(UTCDateTime(), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    finished_at: Mapped[datetime | None] = mapped_column(UTCDateTime())
+    status: Mapped[SchedulerExecutionStatus] = mapped_column(
+        Enum(
+            SchedulerExecutionStatus,
+            native_enum=False,
+            length=16,
+            values_callable=lambda enum: [member.value for member in enum],
+        ),
+        default=SchedulerExecutionStatus.SCHEDULED,
+        nullable=False,
+    )
+    error_type: Mapped[str | None] = mapped_column(String(200))
+    metadata_: Mapped[dict[str, Any]] = mapped_column("metadata", JSON_TYPE, default=dict)
+    created_at: Mapped[datetime] = mapped_column(UTCDateTime(), default=utc_now, nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        UTCDateTime(), default=utc_now, onupdate=utc_now, nullable=False
+    )
 
 
 class IngestionRun(Base):

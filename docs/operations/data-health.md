@@ -31,6 +31,10 @@ Overall Observatory state is derived as follows:
 Community/Hacker News and Public/Wikipedia are currently reported as not collecting, not as
 errors. Their absence does not create fabricated coverage rows.
 
+Coverage rebuilds are source-scoped. An arXiv/GitHub rebuild may create, update, or delete only
+the projections owned by those implemented derivation handlers; it preserves rows owned by future
+Hacker News, Wikipedia, or other handlers.
+
 ## Data-quality counters
 
 Operations exposes persisted counts for ingestion errors in the last 24 hours, unresolved partial
@@ -68,8 +72,15 @@ real UTC observation date returns `PENDING`; it does not generate another snapsh
 counts only persisted scheduler-tagged runs and allows legitimate partial runs as evidence when
 their errors and cursor outcomes are recorded. Manual runs never become scheduled evidence.
 
+Expected windows are persisted in `scheduler_executions` before they become due. A normal run
+transitions `scheduled → running → succeeded|failed`. On Worker restart, a due unclaimed plan is
+recorded as `missed`, while a previously running plan is recorded as `interrupted`. Neither state
+triggers a hidden manual replay. arXiv and GitHub have independent execution locks; GitHub snapshot
+and discovery remain serialized with each other because they share one source budget.
+
 ## Backup scope
 
-Operational backup/restore automation is deferred to E04.5B. A valid future backup must include
-both PostgreSQL lineage and immutable Raw storage, produce a checksummed manifest, and be tested by
-restoring into empty storage. Database-only or Raw-only copies are not sufficient.
+E04.5B backup/restore automation treats PostgreSQL, immutable Raw, Registry configuration, and
+provenance as one recovery unit. Source recovery adapters fail closed so that a future collector
+cannot be enabled while its Raw or lineage is silently excluded from verification. Database-only
+or Raw-only copies are not sufficient.

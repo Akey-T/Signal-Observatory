@@ -31,6 +31,7 @@ def test_migration_upgrade_and_downgrade(tmp_path: Path) -> None:
         "github_topic_repository_matches",
         "ingestion_errors",
         "ingestion_runs",
+        "scheduler_executions",
         "sources",
         "topic_aliases",
         "topic_categories",

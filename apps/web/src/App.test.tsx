@@ -323,6 +323,8 @@ describe("Operations", () => {
     expect(screen.getAllByText("Partial").length).toBeGreaterThan(0);
     expect(screen.getAllByText("Forward Only").length).toBeGreaterThan(0);
     expect(screen.getByText("Raw checksum failures")).toBeInTheDocument();
+    expect(screen.getByText("Missed schedules · 24h")).toBeInTheDocument();
+    expect(screen.getByText("Interrupted schedules · 24h")).toBeInTheDocument();
     expect(screen.getByText("Not verified")).toBeInTheDocument();
     expect(screen.queryByText(/coverage \d+%/i)).not.toBeInTheDocument();
   });

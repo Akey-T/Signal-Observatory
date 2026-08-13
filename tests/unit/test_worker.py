@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from observatory_db import Base
+from observatory_db.session import create_database_engine
 from signal_observatory_config import Settings
 from signal_observatory_worker.main import (
     next_arxiv_run,
@@ -18,9 +20,13 @@ from signal_observatory_worker.main import (
 @pytest.mark.asyncio
 async def test_worker_readiness_lifecycle(tmp_path: Path) -> None:
     ready_file = tmp_path / "worker-ready"
+    database_url = f"sqlite+pysqlite:///{tmp_path / 'worker.db'}"
+    engine = create_database_engine(database_url)
+    Base.metadata.create_all(engine)
+    engine.dispose()
     stop_event = asyncio.Event()
     settings = Settings(
-        database_url="sqlite+pysqlite:///:memory:",
+        database_url=database_url,
         environment="test",
         worker_ready_file=ready_file,
         database_connect_attempts=1,

@@ -280,6 +280,8 @@ export type OperationsOverview = {
     raw_checksum_failures: number | null;
     raw_integrity_state: string;
     registry_warnings: number;
+    scheduler_missed_last_24h: number;
+    scheduler_interrupted_last_24h: number;
   };
   data_protection: {
     latest_backup: BackupSummary | null;

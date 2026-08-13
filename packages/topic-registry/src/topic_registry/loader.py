@@ -124,6 +124,7 @@ class TopicRegistryLoader:
         topic_by_slug: dict[str, TopicDefinition] = {}
         canonical_names: dict[str, str] = {}
         aliases_by_folded: dict[str, list[tuple[str, AliasDefinition]]] = defaultdict(list)
+        wikipedia_pages: dict[str, list[str]] = defaultdict(list)
         for topic in topics:
             if topic.slug in topic_by_slug:
                 issues.append(self._error("DUPLICATE_TOPIC_SLUG", f"duplicate topic: {topic.slug}"))
@@ -158,6 +159,22 @@ class TopicRegistryLoader:
                     )
                 seen_aliases.add(identity)
                 aliases_by_folded[normalize_alias(alias.value)].append((topic.slug, alias))
+            if topic.sources.wikipedia is not None:
+                for page_title in topic.sources.wikipedia.page_titles:
+                    normalized_page = " ".join(page_title.replace("_", " ").split()).casefold()
+                    wikipedia_pages[normalized_page].append(topic.slug)
+
+        for page_title, mapped_topic_slugs in sorted(wikipedia_pages.items()):
+            distinct_topics = sorted(set(mapped_topic_slugs))
+            if len(distinct_topics) > 1:
+                issues.append(
+                    self._warning(
+                        "SHARED_WIKIPEDIA_PAGE",
+                        f"Wikipedia page {page_title!r} is explicitly shared by "
+                        f"{distinct_topics}; observations must surface shared provenance",
+                        entity=page_title,
+                    )
+                )
 
         allowlist_by_alias: dict[str, AllowedAliasCollision] = {}
         for collision in collisions:

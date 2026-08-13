@@ -138,6 +138,8 @@ async def test_operations_and_coverage_endpoints_are_truthful(
     assert operations_payload["coverage_summary"]["forward_only"] == 1
     assert operations_payload["data_quality"]["partial_mappings"] == 1
     assert operations_payload["data_quality"]["raw_checksum_failures"] is None
+    assert operations_payload["data_quality"]["scheduler_missed_last_24h"] == 0
+    assert operations_payload["data_quality"]["scheduler_interrupted_last_24h"] == 0
     assert operations_payload["data_protection"] == {
         "latest_backup": None,
         "latest_verified_backup": None,

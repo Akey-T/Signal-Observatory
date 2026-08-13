@@ -20,6 +20,7 @@ from observatory_operations.backup_models import (
     BackupManifest,
     CoverageManifest,
     DatabaseManifest,
+    RawManifestEntry,
     RawManifestSummary,
     RegistryManifest,
     SourceManifest,
@@ -118,6 +119,34 @@ def test_backup_id_is_unique_utc_and_manifest_rejects_unknown_fields(tmp_path: P
     with pytest.raises(ValidationError, match="unexpected"):
         BackupManifest.model_validate(payload)
 
+    extended = manifest.model_copy(
+        update={
+            "sources": {
+                **manifest.sources,
+                "hacker_news": SourceManifest(
+                    entity_count=0,
+                    match_count=0,
+                    raw_response_count=0,
+                ),
+            }
+        }
+    )
+    assert set(BackupManifest.model_validate(extended.model_dump()).sources) == {
+        "arxiv",
+        "github",
+        "hacker_news",
+    }
+    entry = RawManifestEntry(
+        path="hacker_news/2026/08/13/record",
+        size_bytes=1,
+        sha256="0" * 64,
+        sidecar=True,
+        sidecar_size_bytes=1,
+        sidecar_sha256="1" * 64,
+        source_checksum="2" * 64,
+    )
+    assert entry.path.startswith("hacker_news/")
+
 
 def test_raw_copy_and_full_verification_detect_corruption(tmp_path: Path) -> None:
     source = tmp_path / "source"
@@ -202,4 +231,18 @@ def test_raw_copy_rejects_symlinked_record(tmp_path: Path) -> None:
     except OSError:
         pytest.skip("creating symlinks requires platform permission")
     with pytest.raises(BackupError, match="symlink"):
+        RawBackupCopier(source).copy(tmp_path / "copy", tmp_path / "manifest.gz")
+
+
+def test_raw_copy_fails_closed_for_unregistered_source(tmp_path: Path) -> None:
+    source = tmp_path / "source"
+    LocalRawStore(source).write(
+        source="hacker_news",
+        payload=b"payload",
+        request_timestamp=datetime(2026, 8, 13, tzinfo=UTC),
+        collector_version="test",
+        schema_version="1",
+    )
+
+    with pytest.raises(BackupError, match="no recovery adapter: hacker_news"):
         RawBackupCopier(source).copy(tmp_path / "copy", tmp_path / "manifest.gz")

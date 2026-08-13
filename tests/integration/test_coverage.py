@@ -12,7 +12,7 @@ from observatory_db.arxiv_models import (
     ArxivPaper,
     ArxivTopicMatch,
 )
-from observatory_db.coverage_models import CoverageStatus, TopicSourceCoverage
+from observatory_db.coverage_models import CoverageStatus, CoverageStrategy, TopicSourceCoverage
 from observatory_db.github_models import (
     GithubDiscoveryState,
     GithubMatchMethod,
@@ -43,6 +43,7 @@ def test_coverage_derivation_missing_dates_and_rebuild_idempotency(
     with Session(migrated_engine) as session:
         arxiv = Source(name="arxiv", kind="api", metadata_={})
         github = Source(name="github", kind="api", metadata_={})
+        hacker_news = Source(name="hacker_news", kind="api", metadata_={})
         complete = Topic(
             canonical_name="Complete Research",
             normalized_name="complete research",
@@ -73,16 +74,23 @@ def test_coverage_derivation_missing_dates_and_rebuild_idempotency(
             normalized_name="empty developer",
             slug="empty-developer",
         )
+        community = Topic(
+            canonical_name="Community Evidence",
+            normalized_name="community evidence",
+            slug="community-evidence",
+        )
         session.add_all(
             [
                 arxiv,
                 github,
+                hacker_news,
                 complete,
                 partial,
                 developer,
                 empty_research,
                 never_initialized,
                 empty_developer,
+                community,
             ]
         )
         session.flush()
@@ -106,6 +114,28 @@ def test_coverage_derivation_missing_dates_and_rebuild_idempotency(
         github_run = _run(github, first_day)
         session.add_all([arxiv_run, github_run])
         session.flush()
+        session.add(
+            TopicSourceCoverage(
+                topic_id=community.id,
+                source_id=hacker_news.id,
+                coverage_status=CoverageStatus.FORWARD_ONLY,
+                coverage_strategy=CoverageStrategy.EVENT_STREAM,
+                coverage_start=first_day.date(),
+                coverage_end=first_day.date(),
+                target_start=None,
+                target_end=None,
+                first_observed_at=first_day,
+                last_observed_at=first_day,
+                last_successful_run_at=first_day,
+                observation_count=1,
+                expected_observation_count=None,
+                missing_observation_count=0,
+                partial_reason=None,
+                derived_at=first_day,
+                derivation_version="hacker-news-test-v1",
+                metadata_={"source_owned": True},
+            )
+        )
 
         paper = ArxivPaper(
             arxiv_id="2608.00001",
@@ -246,6 +276,12 @@ def test_coverage_derivation_missing_dates_and_rebuild_idempotency(
         assert states[empty_research.id] == CoverageStatus.EMPTY
         assert states[never_initialized.id] == CoverageStatus.UNKNOWN
         assert states[empty_developer.id] == CoverageStatus.EMPTY
+        assert states[community.id] == CoverageStatus.FORWARD_ONLY
+        preserved = session.scalar(
+            select(TopicSourceCoverage).where(TopicSourceCoverage.topic_id == community.id)
+        )
+        assert preserved is not None
+        assert preserved.derivation_version == "hacker-news-test-v1"
         assert (
             session.scalar(
                 select(TopicSourceCoverage.derivation_version).where(

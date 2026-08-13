@@ -382,6 +382,8 @@ export const operationsOverview: OperationsOverview = {
     raw_checksum_failures: null,
     raw_integrity_state: "not_verified",
     registry_warnings: 0,
+    scheduler_missed_last_24h: 0,
+    scheduler_interrupted_last_24h: 0,
   },
   data_protection: {
     latest_backup: {

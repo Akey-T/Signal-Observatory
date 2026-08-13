@@ -14,21 +14,10 @@ from typing import Any
 from uuid import uuid4
 
 import httpx
-from sqlalchemy import Engine, inspect, select
+from sqlalchemy import Engine, inspect
 from sqlalchemy.engine import URL, make_url
 from sqlalchemy.orm import Session
 
-from observatory_db.arxiv_models import (
-    ArxivPaperObservation,
-    ArxivRawResponse,
-    ArxivTopicMatch,
-)
-from observatory_db.github_models import (
-    GithubRawResponse,
-    GithubRepositorySnapshot,
-    GithubTopicRepositoryMatch,
-)
-from observatory_db.models import IngestionRun, TopicSourceMapping
 from observatory_db.session import create_database_engine
 from observatory_operations.backup import BackupCatalog, BackupService, BackupVerifier
 from observatory_operations.backup_models import BackupManifest, RestoreReport
@@ -38,6 +27,7 @@ from observatory_operations.postgres_backup import (
     PostgresTool,
     PostgresToolError,
 )
+from observatory_operations.source_recovery import SOURCE_RECOVERY_ADAPTERS
 from signal_observatory_config import Settings
 from topic_registry.queries import TopicQueryService
 
@@ -102,7 +92,7 @@ class RestoreService:
                 raw_restore="pass" if raw_restored else "fail",
                 counts={"expected": manifest.database.counts, "restored": {}},
                 raw_integrity={"state": "not_checked", "failures": 0},
-                lineage_samples={"arxiv": [], "github": []},
+                lineage_samples={source: [] for source in manifest.sources},
                 migration={
                     "expected": manifest.database.migration_head,
                     "restored": "unknown",
@@ -202,7 +192,7 @@ class RestoreService:
                 )
                 registry = TopicQueryService(session).registry_status()
                 raw = RawIntegrityVerifier(session, raw_dir).verify(full=True)
-                lineage = self._lineage_samples(session, raw_dir)
+                lineage = self._lineage_samples(session, raw_dir, tuple(manifest.sources))
                 api_smoke = asyncio.run(self._api_smoke(engine, database_url, raw_dir))
         finally:
             engine.dispose()
@@ -212,9 +202,9 @@ class RestoreService:
             and registry["checksum"] == manifest.registry.checksum
             and int(str(registry["topic_count"])) == manifest.registry.topic_count
         )
-        arxiv_lineage_valid = bool(lineage["arxiv"]) or (manifest.sources["arxiv"].match_count == 0)
-        github_lineage_valid = bool(lineage["github"]) or (
-            manifest.sources["github"].match_count == 0
+        lineage_valid = all(
+            bool(lineage.get(source)) or source_manifest.match_count == 0
+            for source, source_manifest in manifest.sources.items()
         )
         raw_valid = raw["state"] == "pass" or (
             manifest.raw.file_count == 0 and raw["state"] == "not_initialized"
@@ -224,8 +214,7 @@ class RestoreService:
             and migration == manifest.database.migration_head
             and registry_valid
             and raw_valid
-            and arxiv_lineage_valid
-            and github_lineage_valid
+            and lineage_valid
             and all(status == 200 for status in api_smoke.values())
         )
         return RestoreReport(
@@ -254,82 +243,19 @@ class RestoreService:
         )
 
     @staticmethod
-    def _lineage_samples(session: Session, raw_dir: Path) -> dict[str, list[dict[str, str]]]:
-        verifier = RawIntegrityVerifier(session, raw_dir)
-        arxiv: list[dict[str, str]] = []
-        arxiv_rows = session.execute(
-            select(
-                ArxivTopicMatch,
-                ArxivPaperObservation,
-                ArxivRawResponse,
-                TopicSourceMapping,
-                IngestionRun,
-            )
-            .join(
-                ArxivPaperObservation,
-                ArxivPaperObservation.paper_id == ArxivTopicMatch.paper_id,
-            )
-            .join(ArxivRawResponse, ArxivRawResponse.id == ArxivPaperObservation.raw_response_id)
-            .join(
-                TopicSourceMapping,
-                TopicSourceMapping.id == ArxivTopicMatch.source_mapping_id,
-            )
-            .join(IngestionRun, IngestionRun.run_id == ArxivPaperObservation.ingestion_run_id)
-            .order_by(ArxivTopicMatch.id)
-            .limit(10)
-        ).all()
-        for match, observation, raw, mapping, run in arxiv_rows:
-            path = verifier.resolve_path(raw.raw_path, "arxiv")
-            RawIntegrityVerifier.verify_raw_directory(path, expected_checksum=raw.payload_checksum)
-            arxiv.append(
-                {
-                    "match_id": str(match.id),
-                    "observation_id": str(observation.id),
-                    "mapping_id": str(mapping.id),
-                    "run_id": str(run.run_id),
-                    "raw_id": str(raw.id),
-                    "raw_key": raw.raw_path,
-                }
-            )
-        github: list[dict[str, str]] = []
-        github_rows = session.execute(
-            select(
-                GithubRepositorySnapshot,
-                GithubTopicRepositoryMatch,
-                GithubRawResponse,
-                TopicSourceMapping,
-                IngestionRun,
-            )
-            .join(
-                GithubTopicRepositoryMatch,
-                GithubTopicRepositoryMatch.repository_id == GithubRepositorySnapshot.repository_id,
-            )
-            .join(
-                GithubRawResponse,
-                GithubRawResponse.id == GithubRepositorySnapshot.raw_response_id,
-            )
-            .join(
-                TopicSourceMapping,
-                TopicSourceMapping.id == GithubTopicRepositoryMatch.source_mapping_id,
-            )
-            .join(IngestionRun, IngestionRun.run_id == GithubRepositorySnapshot.ingestion_run_id)
-            .order_by(GithubRepositorySnapshot.id)
-            .limit(10)
-        ).all()
-        for snapshot, match, raw, mapping, run in github_rows:
-            path = verifier.resolve_path(raw.raw_path, "github")
-            RawIntegrityVerifier.verify_raw_directory(path, expected_checksum=raw.payload_checksum)
-            github.append(
-                {
-                    "snapshot_id": str(snapshot.id),
-                    "match_id": str(match.id),
-                    "mapping_id": str(mapping.id),
-                    "run_id": str(run.run_id),
-                    "raw_id": str(raw.id),
-                    "raw_key": raw.raw_path,
-                }
-            )
-        return {"arxiv": arxiv, "github": github}
+    def _lineage_samples(
+        session: Session,
+        raw_dir: Path,
+        sources: tuple[str, ...],
+    ) -> dict[str, list[dict[str, str]]]:
+        samples: dict[str, list[dict[str, str]]] = {}
+        for source in sources:
+            adapter = SOURCE_RECOVERY_ADAPTERS.get(source)
+            if adapter is None:
+                samples[source] = []
+            else:
+                samples[source] = adapter.lineage_sampler(session, raw_dir)
+        return samples
 
     @staticmethod
     async def _api_smoke(engine: Engine, database_url: str, raw_dir: Path) -> dict[str, int]:

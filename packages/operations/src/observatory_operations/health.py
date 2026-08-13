@@ -29,6 +29,8 @@ from observatory_db.models import (
     IngestionError,
     IngestionRun,
     IngestionStatus,
+    SchedulerExecution,
+    SchedulerExecutionStatus,
     Source,
     Topic,
     TopicSourceMapping,
@@ -78,6 +80,10 @@ class OperationsService:
             active,
             coverage_summary,
             missing_snapshot_dates=data_quality["missing_snapshot_dates"],
+            scheduler_anomalies=(
+                data_quality["scheduler_missed_last_24h"]
+                + data_quality["scheduler_interrupted_last_24h"]
+            ),
         )
         return {
             "overall_state": overall.value,
@@ -98,6 +104,7 @@ class OperationsService:
         coverage_summary: dict[str, int],
         *,
         missing_snapshot_dates: int,
+        scheduler_anomalies: int = 0,
     ) -> OverallState:
         states = {str(source["collector_state"]) for source in active}
         if not active:
@@ -109,6 +116,7 @@ class OperationsService:
             or coverage_summary[CoverageStatus.PARTIAL.value] > 0
             or coverage_summary[CoverageStatus.UNKNOWN.value] > 0
             or missing_snapshot_dates > 0
+            or scheduler_anomalies > 0
         ):
             return OverallState.DEGRADED
         return OverallState.HEALTHY
@@ -398,6 +406,23 @@ class OperationsService:
         registry = TopicQueryService(self.session).registry_status()
         registry_warnings = registry["warnings"] if registry else 0
         assert isinstance(registry_warnings, int)
+        scheduler_counts = {
+            status: int(
+                self.session.scalar(
+                    select(func.count())
+                    .select_from(SchedulerExecution)
+                    .where(
+                        SchedulerExecution.finished_at >= since,
+                        SchedulerExecution.status == status,
+                    )
+                )
+                or 0
+            )
+            for status in (
+                SchedulerExecutionStatus.MISSED,
+                SchedulerExecutionStatus.INTERRUPTED,
+            )
+        }
         return {
             "ingestion_errors_last_24h": errors,
             "partial_mappings": partial_mappings,
@@ -406,6 +431,10 @@ class OperationsService:
             "raw_checksum_failures": None,
             "raw_integrity_state": "not_verified",
             "registry_warnings": registry_warnings,
+            "scheduler_missed_last_24h": scheduler_counts[SchedulerExecutionStatus.MISSED],
+            "scheduler_interrupted_last_24h": scheduler_counts[
+                SchedulerExecutionStatus.INTERRUPTED
+            ],
         }
 
     def _registry(self) -> dict[str, Any]:

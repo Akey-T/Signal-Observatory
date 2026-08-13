@@ -15,7 +15,7 @@ from sqlalchemy.orm import Session
 from arxiv_collector import ArxivCollectionService
 from github_collector import GithubCollectionService
 from observatory_db.session import create_database_engine, wait_for_database
-from observatory_operations import CoverageDeriver
+from observatory_operations import CoverageDeriver, SchedulerLedger
 from signal_observatory_api.logging import configure_logging
 from signal_observatory_config import Settings, get_settings
 
@@ -89,15 +89,28 @@ async def wait_until_due(
 async def scheduled_job(
     *,
     name: str,
+    source_name: str,
     schedule: str,
     setting_name: str,
     stop_event: asyncio.Event,
     execution_lock: asyncio.Lock,
     job: Job,
+    ledger: SchedulerLedger | None = None,
     wall_clock: WallClock = lambda: datetime.now(UTC),
 ) -> None:
+    if ledger is not None:
+        for reconciled in ledger.reconcile(name, now=wall_clock()):
+            logger.warning(
+                "collector_schedule_window_reconciled",
+                job=reconciled.job_name,
+                source=reconciled.source_name,
+                scheduled_at=reconciled.scheduled_at.isoformat(),
+                status=reconciled.status.value,
+            )
     while not stop_event.is_set():
         scheduled_at = next_cron_run(schedule, wall_clock(), setting_name=setting_name)
+        if ledger is not None:
+            ledger.plan(name, source_name, scheduled_at)
         logger.info("collector_job_scheduled", job=name, scheduled_at=scheduled_at.isoformat())
         if not await wait_until_due(scheduled_at, stop_event, wall_clock=wall_clock):
             return
@@ -105,7 +118,34 @@ async def scheduled_job(
             async with execution_lock:
                 if stop_event.is_set():
                     return
-                await job()
+                if ledger is not None and not ledger.start(name, scheduled_at, now=wall_clock()):
+                    logger.warning(
+                        "collector_schedule_window_not_claimed",
+                        job=name,
+                        source=source_name,
+                        scheduled_at=scheduled_at.isoformat(),
+                    )
+                    continue
+                try:
+                    await job()
+                except Exception as error:
+                    if ledger is not None:
+                        ledger.finish(
+                            name,
+                            scheduled_at,
+                            now=wall_clock(),
+                            succeeded=False,
+                            error_type=type(error).__name__,
+                        )
+                    raise
+                else:
+                    if ledger is not None:
+                        ledger.finish(
+                            name,
+                            scheduled_at,
+                            now=wall_clock(),
+                            succeeded=True,
+                        )
         except Exception as error:
             logger.exception(
                 "scheduled_collector_job_failed",
@@ -119,12 +159,18 @@ async def scheduler_host(
     engine: Engine,
     stop_event: asyncio.Event,
 ) -> None:
-    execution_lock = asyncio.Lock()
+    execution_locks = {"arxiv": asyncio.Lock(), "github": asyncio.Lock()}
+    coverage_lock = asyncio.Lock()
+    ledger = SchedulerLedger(engine)
+
+    async def rebuild_coverage(session: Session) -> None:
+        async with coverage_lock:
+            CoverageDeriver(session).rebuild()
 
     async def collect_arxiv() -> None:
         with Session(engine) as session:
             summary = await ArxivCollectionService(session, settings).collect(trigger="scheduled")
-            CoverageDeriver(session).rebuild()
+            await rebuild_coverage(session)
         logger.info(
             "arxiv_scheduled_collection_finished",
             run_id=str(summary.run_id),
@@ -136,7 +182,7 @@ async def scheduler_host(
     async def snapshot_github() -> None:
         with Session(engine) as session:
             summary = await GithubCollectionService(session, settings).snapshot()
-            CoverageDeriver(session).rebuild()
+            await rebuild_coverage(session)
         logger.info(
             "github_scheduled_snapshot_finished",
             run_id=str(summary.run_id),
@@ -148,7 +194,7 @@ async def scheduler_host(
     async def discover_github() -> None:
         with Session(engine) as session:
             summary = await GithubCollectionService(session, settings).discover()
-            CoverageDeriver(session).rebuild()
+            await rebuild_coverage(session)
         logger.info(
             "github_scheduled_discovery_finished",
             run_id=str(summary.run_id),
@@ -161,31 +207,37 @@ async def scheduler_host(
         asyncio.create_task(
             scheduled_job(
                 name="arxiv_daily",
+                source_name="arxiv",
                 schedule=settings.arxiv_schedule,
                 setting_name="ARXIV_SCHEDULE",
                 stop_event=stop_event,
-                execution_lock=execution_lock,
+                execution_lock=execution_locks["arxiv"],
                 job=collect_arxiv,
+                ledger=ledger,
             )
         ),
         asyncio.create_task(
             scheduled_job(
                 name="github_daily_snapshot",
+                source_name="github",
                 schedule=settings.github_snapshot_schedule,
                 setting_name="GITHUB_SNAPSHOT_SCHEDULE",
                 stop_event=stop_event,
-                execution_lock=execution_lock,
+                execution_lock=execution_locks["github"],
                 job=snapshot_github,
+                ledger=ledger,
             )
         ),
         asyncio.create_task(
             scheduled_job(
                 name="github_weekly_discovery",
+                source_name="github",
                 schedule=settings.github_discovery_schedule,
                 setting_name="GITHUB_DISCOVERY_SCHEDULE",
                 stop_event=stop_event,
-                execution_lock=execution_lock,
+                execution_lock=execution_locks["github"],
                 job=discover_github,
+                ledger=ledger,
             )
         ),
     ]

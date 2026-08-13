@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 BACKUP_SCHEMA_VERSION: Literal["1"] = "1"
 BACKUP_TOOL_VERSION = "backup-v1"
 BACKUP_ID_PATTERN = re.compile(r"^\d{8}T\d{6}Z-[0-9a-f]{6}$")
+SOURCE_NAME_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 
 
 class StrictModel(BaseModel):
@@ -81,8 +82,13 @@ class BackupManifest(StrictModel):
 
     @model_validator(mode="after")
     def validate_sources(self) -> BackupManifest:
-        if set(self.sources) != {"arxiv", "github"}:
-            raise ValueError("sources must contain exactly arxiv and github")
+        if not self.sources:
+            raise ValueError("sources must contain at least one registered recovery source")
+        invalid = sorted(
+            name for name in self.sources if SOURCE_NAME_PATTERN.fullmatch(name) is None
+        )
+        if invalid:
+            raise ValueError(f"invalid recovery source name(s): {', '.join(invalid)}")
         return self
 
 
@@ -101,8 +107,9 @@ class RawManifestEntry(StrictModel):
         normalized = value.replace("\\", "/")
         if normalized.startswith("/") or ".." in normalized.split("/"):
             raise ValueError("Raw manifest path must be a safe logical key")
-        if not normalized.startswith(("arxiv/", "github/")):
-            raise ValueError("Raw manifest path must begin with arxiv/ or github/")
+        parts = normalized.split("/")
+        if len(parts) < 2 or SOURCE_NAME_PATTERN.fullmatch(parts[0]) is None:
+            raise ValueError("Raw manifest path must begin with a valid source name")
         return normalized
 
 

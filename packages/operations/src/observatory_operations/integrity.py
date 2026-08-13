@@ -13,8 +13,10 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from collector_core import DataIntegrityError, LocalRawStore
-from observatory_db.arxiv_models import ArxivRawResponse
-from observatory_db.github_models import GithubRawResponse
+from observatory_operations.source_recovery import (
+    SOURCE_RECOVERY_ADAPTERS,
+    recovery_source_names,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,8 +43,11 @@ class RawIntegrityVerifier:
     ) -> dict[str, Any]:
         if sample < 1 or sample > 10000:
             raise ValueError("Raw integrity sample must be between 1 and 10000")
-        if source not in {None, "arxiv", "github"}:
-            raise ValueError("Raw integrity source must be arxiv or github")
+        if source is not None and source not in SOURCE_RECOVERY_ADAPTERS:
+            raise ValueError(
+                "Raw integrity source must have a registered recovery adapter: "
+                + ", ".join(recovery_source_names())
+            )
         pointers, available = self._pointers(source=source, sample=sample, full=full)
         failures: list[dict[str, str]] = []
         for pointer in pointers:
@@ -98,11 +103,11 @@ class RawIntegrityVerifier:
     def _pointers(
         self, *, source: str | None, sample: int, full: bool
     ) -> tuple[list[RawPointer], int]:
-        sources = [source] if source else ["arxiv", "github"]
+        sources = [source] if source else list(recovery_source_names())
         available = 0
         candidates: list[RawPointer] = []
         for source_name in sources:
-            model = ArxivRawResponse if source_name == "arxiv" else GithubRawResponse
+            model = SOURCE_RECOVERY_ADAPTERS[source_name].raw_model
             source_count = int(self.session.scalar(select(func.count()).select_from(model)) or 0)
             available += source_count
             statement = select(

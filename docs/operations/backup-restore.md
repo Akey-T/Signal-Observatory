@@ -24,6 +24,7 @@ Each published directory is named `<UTC timestamp>-<six hex characters>` and con
   raw/
     arxiv/...
     github/...
+    <future-registered-source>/...
   raw-manifest.jsonl.gz
   registry/topics/*.yaml
   verification.json
@@ -33,6 +34,12 @@ Each published directory is named `<UTC timestamp>-<six hex characters>` and con
 logical paths, byte sizes, compressed-file SHA-256 values, sidecar SHA-256 values, and the
 uncompressed source checksum. `manifest.json` is strict and versioned; unknown fields fail
 validation. No database URL, password, GitHub token, or other secret is written to these files.
+
+Backup, Raw integrity, and restore use one fail-closed source recovery catalog. Each implemented
+collector must register its Raw pointer model, entity/match/count tables, and lineage sampler.
+Raw source directories without an adapter abort backup creation. Manifest source names and paths
+are extensible, but a backup containing a source unsupported by the running application fails
+verification instead of silently dropping evidence.
 
 ## Create and verify
 
@@ -89,8 +96,8 @@ Safety gates reject:
 There is deliberately no `--force` option. Raw is copied into a sibling staging directory,
 byte-compared with the backup, and atomically published before `pg_restore --exit-on-error`.
 After restore, the verifier requires exact domain-table counts, matching Alembic head, matching
-Registry version/checksum/topic count, full Raw integrity, arXiv and GitHub lineage samples when
-those sources contain matches, and HTTP 200 responses from Registry, Operations, Research,
+Registry version/checksum/topic count, full Raw integrity, a source-registered lineage sample when
+that source contains matches, and HTTP 200 responses from Registry, Operations, Research,
 Development, and Coverage APIs. A restore report is written beside the target Raw directory.
 
 ## Recommended isolated drill

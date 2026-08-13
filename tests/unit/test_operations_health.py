@@ -122,3 +122,15 @@ def test_overall_state_is_deterministic(
         )
         == expected
     )
+
+
+def test_scheduler_anomaly_degrades_an_otherwise_healthy_observatory() -> None:
+    assert (
+        OperationsService._overall_state(
+            [{"collector_state": "healthy", "implemented": True, "enabled": True}],
+            {"complete": 1, "partial": 0, "forward_only": 0, "empty": 0, "unknown": 0},
+            missing_snapshot_dates=0,
+            scheduler_anomalies=1,
+        )
+        == OverallState.DEGRADED
+    )

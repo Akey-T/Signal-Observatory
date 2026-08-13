@@ -21,6 +21,7 @@ from observatory_operations.models import (
     freshness_state,
 )
 from observatory_operations.restore import DisasterRecoveryDrill, RestoreError, RestoreService
+from observatory_operations.scheduler import ReconciledExecution, SchedulerLedger
 from observatory_operations.verification import ArxivSoakVerifier, GithubCrossDayVerifier
 
 __all__ = [
@@ -40,7 +41,9 @@ __all__ = [
     "OverallState",
     "OperationsService",
     "RawIntegrityVerifier",
+    "ReconciledExecution",
     "RestoreError",
     "RestoreService",
+    "SchedulerLedger",
     "freshness_state",
 ]

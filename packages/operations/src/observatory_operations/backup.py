@@ -9,6 +9,7 @@ import json
 import os
 import shutil
 import subprocess
+from collections import defaultdict
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from importlib.metadata import PackageNotFoundError, version
@@ -22,7 +23,6 @@ from sqlalchemy.orm import Session
 
 from collector_core import DataIntegrityError, LocalRawStore
 from observatory_db.base import Base
-from observatory_db.github_models import GithubRepositorySnapshot
 from observatory_db.models import IngestionRun, Source
 from observatory_db.session import create_database_engine
 from observatory_operations.backup_models import (
@@ -42,6 +42,10 @@ from observatory_operations.postgres_backup import (
     PostgresTool,
     PostgresToolError,
     assert_version_compatible,
+)
+from observatory_operations.source_recovery import (
+    SOURCE_RECOVERY_ADAPTERS,
+    recovery_source_names,
 )
 from signal_observatory_config import Settings
 from topic_registry.loader import TopicRegistryLoader, TopicRegistryValidationError
@@ -80,9 +84,10 @@ def tree_checksum(root: Path) -> tuple[str, int]:
 
 
 class RawBackupCopier:
-    def __init__(self, source_root: Path) -> None:
+    def __init__(self, source_root: Path, *, sources: Iterable[str] | None = None) -> None:
         self.source_root = source_root.resolve()
         self.store = LocalRawStore(self.source_root)
+        self.sources = tuple(sorted(set(sources or recovery_source_names())))
 
     def copy(self, target_root: Path, manifest_path: Path) -> RawManifestSummary:
         target_root.mkdir(parents=True, exist_ok=False)
@@ -102,7 +107,12 @@ class RawBackupCopier:
         )
 
     def _entries(self, target_root: Path) -> Iterable[RawManifestEntry]:
-        for source in ("arxiv", "github"):
+        unregistered = sorted(self._persisted_source_directories() - set(self.sources))
+        if unregistered:
+            raise BackupError(
+                "Raw source directory has no recovery adapter: " + ", ".join(unregistered)
+            )
+        for source in self.sources:
             for record in self.store.iter_records(source):
                 logical = self.store.logical_key(record.directory, source=source)
                 self._ensure_no_symlinks(record.directory, source)
@@ -135,6 +145,15 @@ class RawBackupCopier:
                     sidecar_sha256=sha256_file(record.metadata_path),
                     source_checksum=record.sha256,
                 )
+
+    def _persisted_source_directories(self) -> set[str]:
+        if not self.source_root.is_dir():
+            return set()
+        return {
+            path.name
+            for path in self.source_root.iterdir()
+            if path.is_dir() and not path.name.startswith(".")
+        }
 
     def _ensure_no_symlinks(self, directory: Path, source: str) -> None:
         source_root = self.source_root / source
@@ -177,6 +196,12 @@ class BackupVerifier:
         registry_valid = False
         expected = checked = missing = checksum_failures = sidecar_failures = extras = 0
         if manifest is not None:
+            unsupported = sorted(set(manifest.sources) - set(recovery_source_names()))
+            if unsupported:
+                failures.append(
+                    "backup contains source(s) without a recovery adapter: "
+                    + ", ".join(unsupported)
+                )
             dump_path = backup_directory / manifest.database.dump_filename
             if dump_path.is_file() and dump_path.stat().st_size > 0:
                 dump_checksum_valid = sha256_file(dump_path) == manifest.database.sha256
@@ -257,7 +282,7 @@ class BackupVerifier:
         if sha256_file(manifest_path) != manifest.raw.manifest_sha256:
             failures.append("Raw manifest checksum mismatch")
         expected_paths: set[str] = set()
-        source_entries = {"arxiv": 0, "github": 0}
+        source_entries: defaultdict[str, int] = defaultdict(int)
         checked = missing = checksum_failures = sidecar_failures = 0
         try:
             with gzip.open(manifest_path, "rt", encoding="utf-8") as stream:
@@ -267,7 +292,13 @@ class BackupVerifier:
                         failures.append(f"Raw manifest repeats {entry.path}")
                         continue
                     expected_paths.add(entry.path)
-                    source_entries[entry.path.split("/", 1)[0]] += 1
+                    source = entry.path.split("/", 1)[0]
+                    if source not in manifest.sources:
+                        failures.append(
+                            f"Raw manifest source {source!r} is absent from the backup manifest"
+                        )
+                        continue
+                    source_entries[source] += 1
                     path = (raw_root / entry.path).resolve()
                     try:
                         path.relative_to(raw_root.resolve())
@@ -315,8 +346,9 @@ class BackupVerifier:
             warnings.append(f"{extras} unreferenced Raw record(s) exist in the backup")
         if len(expected_paths) != manifest.raw.file_count:
             failures.append("Raw manifest entry count differs from backup manifest")
-        for source, raw_count in source_entries.items():
-            database_count = manifest.sources[source].raw_response_count
+        for source, source_manifest in manifest.sources.items():
+            raw_count = source_entries[source]
+            database_count = source_manifest.raw_response_count
             if raw_count < database_count:
                 failures.append(
                     f"Raw manifest has fewer {source} records than the database snapshot"
@@ -518,36 +550,40 @@ class BackupService:
 
     @staticmethod
     def _source_manifests(session: Session, counts: dict[str, int]) -> dict[str, SourceManifest]:
-        latest_runs = {
-            name: session.scalar(
+        manifests: dict[str, SourceManifest] = {}
+        for name, adapter in SOURCE_RECOVERY_ADAPTERS.items():
+            required_tables = {adapter.entity_table, adapter.match_table, adapter.raw_table}
+            if adapter.snapshot_table is not None:
+                required_tables.add(adapter.snapshot_table)
+            missing = sorted(required_tables - counts.keys())
+            if missing:
+                raise BackupError(
+                    f"recovery adapter {name!r} references missing table(s): {', '.join(missing)}"
+                )
+            observation_dates = None
+            if adapter.observation_date_column is not None:
+                observation_dates = int(
+                    session.scalar(
+                        select(func.count(func.distinct(adapter.observation_date_column)))
+                    )
+                    or 0
+                )
+            latest_run = session.scalar(
                 select(func.max(IngestionRun.started_at))
                 .join(Source, Source.id == IngestionRun.source_id)
                 .where(Source.name == name)
             )
-            for name in ("arxiv", "github")
-        }
-        github_dates = int(
-            session.scalar(
-                select(func.count(func.distinct(GithubRepositorySnapshot.observation_date)))
+            manifests[name] = SourceManifest(
+                entity_count=counts[adapter.entity_table],
+                match_count=counts[adapter.match_table],
+                raw_response_count=counts[adapter.raw_table],
+                snapshot_count=(
+                    counts[adapter.snapshot_table] if adapter.snapshot_table is not None else None
+                ),
+                observation_dates=observation_dates,
+                latest_run_at=latest_run,
             )
-            or 0
-        )
-        return {
-            "arxiv": SourceManifest(
-                entity_count=counts["arxiv_papers"],
-                match_count=counts["arxiv_topic_matches"],
-                raw_response_count=counts["arxiv_raw_responses"],
-                latest_run_at=latest_runs["arxiv"],
-            ),
-            "github": SourceManifest(
-                entity_count=counts["github_repositories"],
-                match_count=counts["github_topic_repository_matches"],
-                raw_response_count=counts["github_raw_responses"],
-                snapshot_count=counts["github_repository_snapshots"],
-                observation_dates=github_dates,
-                latest_run_at=latest_runs["github"],
-            ),
-        }
+        return manifests
 
     @staticmethod
     def _registry_manifest(session: Session) -> RegistryManifest:

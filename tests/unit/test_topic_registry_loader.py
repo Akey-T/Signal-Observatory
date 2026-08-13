@@ -76,6 +76,32 @@ allowed_alias_collisions: []
     assert "MISSING_CATEGORY" in issue_codes(tmp_path)
 
 
+def test_shared_wikipedia_page_is_visible_as_warning(tmp_path: Path) -> None:
+    (tmp_path / "registry.yaml").write_text(
+        """schema_version: 1
+categories: [{name: Infrastructure, slug: infrastructure}]
+topics:
+  - canonical_name: Edge AI
+    slug: edge-ai
+    description: Artificial intelligence deployed near data sources.
+    category: infrastructure
+    sources: {wikipedia: {page_titles: [Edge_computing]}}
+  - canonical_name: Edge Computing
+    slug: edge-computing
+    description: Distributed computation deployed near data sources.
+    category: infrastructure
+    sources: {wikipedia: {page_titles: [Edge computing]}}
+allowed_alias_collisions: []
+""",
+        encoding="utf-8",
+    )
+
+    registry = TopicRegistryLoader(tmp_path).load()
+
+    assert [issue.code for issue in registry.warnings] == ["SHARED_WIKIPEDIA_PAGE"]
+    assert registry.warnings[0].entity == "edge computing"
+
+
 def test_checksum_is_independent_of_definition_order() -> None:
     categories = (
         CategoryDefinition(name="Second", slug="second"),

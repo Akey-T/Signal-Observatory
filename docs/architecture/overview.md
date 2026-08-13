@@ -85,12 +85,12 @@ constructs requests.
 | Component     | Responsibility                                                    | Persistent writes        |
 | ------------- | ----------------------------------------------------------------- | ------------------------ |
 | API           | Health, Topic, Research, Developer, and source-status reads       | None                     |
-| Worker        | Shared arXiv/GitHub UTC scheduler and graceful collector host     | Raw/Silver via collector |
+| Worker        | Durable UTC scheduler and source-isolated collector host          | Raw/Silver via collector |
 | PostgreSQL    | Silver entities and ingestion lifecycle                           | Alembic-managed tables   |
 | Web           | Read-only Registry, explorer, Research and Developer observations | None                     |
 | LocalRawStore | Atomic Bronze publication and verification                        | `data/raw/`              |
 
-Docker Compose orders startup as PostgreSQL healthy → API migrated/healthy → Worker and Web. The API validates its configuration, retries database startup connectivity, and disposes its engine during graceful shutdown. The worker exposes health through a readiness file that exists only while its database-validated event loop and validated UTC schedules are running. It polls wall time to tolerate host sleep and serializes source jobs with a shared lock. Manual collection, discovery, snapshots, status, and sampling remain available through the CLI.
+Docker Compose orders startup as PostgreSQL healthy → API migrated/healthy → Worker and Web. The API validates its configuration, retries database startup connectivity, and disposes its engine during graceful shutdown. The worker exposes health through a readiness file that exists only while its database-validated event loop and validated UTC schedules are running. It polls wall time to tolerate host sleep, persists each expected window before it is due, and reconciles an elapsed plan as `missed` or an abandoned running plan as `interrupted` after restart. Jobs for the same source share a lock; independent sources do not block one another. Manual collection, discovery, snapshots, status, and sampling remain available through the CLI.
 
 The Web UI consumes only read-only Topic, Research, and Developer APIs. Featured topics are selected deterministically from active topics using editorial monitoring priority and top-level category diversity; observation counts do not affect that rule. Configured source mappings are displayed separately from observation state. Research becomes live only from a successful per-mapping cursor; Developer becomes live only from a successful GitHub snapshot; degraded history remains visible. Hacker News and Wikipedia stay not collecting.
 
@@ -102,6 +102,9 @@ The Web UI consumes only read-only Topic, Research, and Developer APIs. Featured
 - A complete record is published by one same-filesystem directory rename.
 - Existing records are verified and returned, never overwritten.
 - Reads verify both checksum and uncompressed length.
+- Every implemented source must register its Raw pointer, manifest counts, and lineage sampler in
+  the recovery adapter catalog before its evidence can be backed up or restored.
+- An unregistered Raw source makes backup creation fail; it is never silently omitted.
 
 The filesystem implementation is intentionally local. A future object-store implementation must preserve the same `RawStore` invariants, but no cloud abstraction is introduced before it is needed.
 
@@ -117,6 +120,8 @@ The filesystem implementation is intentionally local. A future object-store impl
 - Reapplying an unchanged registry is a no-op.
 - Ingestion counters are non-negative.
 - Every ingestion transitions from `running` to exactly one terminal state and records its checkpoint boundary.
+- Every expected scheduler window has durable `scheduled`, `running`, and terminal evidence;
+  restart reconciliation never relabels a missed window as a successful collection.
 - Canonical arXiv Paper identity excludes the version suffix; new versions update current Silver
   while retaining immutable Raw observations.
 - Paper/Topic is many-to-many and every match records its Registry mapping and exact query.
