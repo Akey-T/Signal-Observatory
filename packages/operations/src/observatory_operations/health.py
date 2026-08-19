@@ -80,14 +80,17 @@ class OperationsService:
             active,
             coverage_summary,
             missing_snapshot_dates=data_quality["missing_snapshot_dates"],
+            registry_warnings=data_quality["registry_warnings"],
             scheduler_anomalies=(
                 data_quality["scheduler_missed_last_24h"]
                 + data_quality["scheduler_interrupted_last_24h"]
+                + data_quality["scheduler_partial_last_24h"]
+                + data_quality["scheduler_failed_last_24h"]
             ),
         )
         return {
             "overall_state": overall.value,
-            "explanation": self._overall_explanation(sources, coverage_summary),
+            "explanation": self._overall_explanation(sources, coverage_summary, data_quality),
             "registry": self._registry(),
             "sources": sources,
             "coverage_summary": coverage_summary,
@@ -104,6 +107,7 @@ class OperationsService:
         coverage_summary: dict[str, int],
         *,
         missing_snapshot_dates: int,
+        registry_warnings: int = 0,
         scheduler_anomalies: int = 0,
     ) -> OverallState:
         states = {str(source["collector_state"]) for source in active}
@@ -116,6 +120,7 @@ class OperationsService:
             or coverage_summary[CoverageStatus.PARTIAL.value] > 0
             or coverage_summary[CoverageStatus.UNKNOWN.value] > 0
             or missing_snapshot_dates > 0
+            or registry_warnings > 0
             or scheduler_anomalies > 0
         ):
             return OverallState.DEGRADED
@@ -421,6 +426,8 @@ class OperationsService:
             for status in (
                 SchedulerExecutionStatus.MISSED,
                 SchedulerExecutionStatus.INTERRUPTED,
+                SchedulerExecutionStatus.PARTIAL,
+                SchedulerExecutionStatus.FAILED,
             )
         }
         return {
@@ -435,6 +442,8 @@ class OperationsService:
             "scheduler_interrupted_last_24h": scheduler_counts[
                 SchedulerExecutionStatus.INTERRUPTED
             ],
+            "scheduler_partial_last_24h": scheduler_counts[SchedulerExecutionStatus.PARTIAL],
+            "scheduler_failed_last_24h": scheduler_counts[SchedulerExecutionStatus.FAILED],
         }
 
     def _registry(self) -> dict[str, Any]:
@@ -462,8 +471,11 @@ class OperationsService:
             or 0
         )
 
+    @staticmethod
     def _overall_explanation(
-        self, sources: list[dict[str, Any]], coverage_summary: dict[str, int]
+        sources: list[dict[str, Any]],
+        coverage_summary: dict[str, int],
+        data_quality: dict[str, Any],
     ) -> str:
         research = next(source for source in sources if source["source"] == "arxiv")
         developer = next(source for source in sources if source["source"] == "github")
@@ -476,9 +488,31 @@ class OperationsService:
                 f"{coverage_summary[CoverageStatus.PARTIAL.value]} Topic-source coverage "
                 "projection(s) are partial"
             )
+        if coverage_summary[CoverageStatus.UNKNOWN.value]:
+            parts.append(
+                f"{coverage_summary[CoverageStatus.UNKNOWN.value]} Topic-source coverage "
+                "projection(s) are unknown"
+            )
         if coverage_summary[CoverageStatus.FORWARD_ONLY.value]:
             parts.append(
                 f"{coverage_summary[CoverageStatus.FORWARD_ONLY.value]} GitHub projection(s) "
                 "are accumulating forward-only history"
             )
+        if data_quality["missing_snapshot_dates"]:
+            parts.append(
+                f"{data_quality['missing_snapshot_dates']} expected GitHub snapshot date(s) "
+                "are missing"
+            )
+        if data_quality["registry_warnings"]:
+            warning_count = data_quality["registry_warnings"]
+            warning_label = "warning" if warning_count == 1 else "warnings"
+            parts.append(f"Registry has {warning_count} {warning_label}")
+        for status in ("missed", "interrupted", "partial", "failed"):
+            count = data_quality[f"scheduler_{status}_last_24h"]
+            if count:
+                execution_label = "execution" if count == 1 else "executions"
+                verb = "was" if count == 1 else "were"
+                parts.append(
+                    f"{count} scheduler {execution_label} {verb} {status} in the last 24 hours"
+                )
         return ". ".join(parts) + "."

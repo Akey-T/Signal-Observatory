@@ -15,8 +15,16 @@ from observatory_db.models import (
     TopicStatus,
 )
 from topic_registry.loader import TopicRegistryLoader
-from topic_registry.models import AliasType, LoadedRegistry, MatchMode, SourcesDefinition
+from topic_registry.models import (
+    AliasType,
+    IssueSeverity,
+    LoadedRegistry,
+    MatchMode,
+    RegistryIssue,
+    SourcesDefinition,
+)
 from topic_registry.models import TopicStatus as DefinitionStatus
+from topic_registry.queries import TopicQueryService
 from topic_registry.sync import TopicRegistrySyncService
 
 FIXTURES = Path(__file__).resolve().parents[1] / "fixtures" / "topic_registry"
@@ -44,6 +52,42 @@ def test_empty_database_sync_then_second_sync_is_noop(migrated_engine: Engine) -
         assert second.version is None
         assert count(session, TopicRegistryVersion) == 1
         assert count(session, TopicRegistryAuditLog) >= 4
+
+
+def test_validation_warning_change_is_versioned_without_registry_content_change(
+    migrated_engine: Engine,
+) -> None:
+    registry = TopicRegistryLoader(FIXTURES / "valid").load()
+    assert registry.warnings == ()
+    with Session(migrated_engine) as session:
+        first = TopicRegistrySyncService(session).sync(registry, applied_by="pytest")
+        assert first.version == 1
+
+        warning = RegistryIssue(
+            code="NEW_VALIDATION_RULE",
+            message="A newly deployed validation rule requires operator review.",
+            severity=IssueSeverity.WARNING,
+            entity="fixture",
+        )
+        warned = registry.model_copy(update={"issues": (warning,)})
+        second = TopicRegistrySyncService(session).sync(warned, applied_by="pytest")
+
+        assert second.changed is True
+        assert second.version == 2
+        assert second.checksum == first.checksum
+        status = TopicQueryService(session).registry_status()
+        assert status is not None
+        assert status["warnings"] == 1
+        latest = session.scalar(
+            select(TopicRegistryVersion).order_by(TopicRegistryVersion.version.desc()).limit(1)
+        )
+        assert latest is not None
+        assert latest.metadata_["warnings"][0]["code"] == "NEW_VALIDATION_RULE"
+
+        third = TopicRegistrySyncService(session).sync(warned, applied_by="pytest")
+        assert third.changed is False
+        assert third.version is None
+        assert count(session, TopicRegistryVersion) == 2
 
 
 def test_update_deprecation_alias_and_mapping_are_versioned(migrated_engine: Engine) -> None:

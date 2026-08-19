@@ -19,6 +19,23 @@ from topic_registry.models import IssueSeverity, LoadedRegistry, RegistryIssue, 
 from topic_registry.normalization import normalize_canonical_name
 
 
+def warning_payloads(
+    warnings: list[RegistryIssue] | tuple[RegistryIssue, ...],
+) -> list[dict[str, Any]]:
+    """Return a deterministic persisted representation of validation warnings."""
+
+    ordered = sorted(
+        warnings,
+        key=lambda warning: (
+            warning.code,
+            warning.entity or "",
+            warning.source_file or "",
+            warning.message,
+        ),
+    )
+    return [warning.model_dump(mode="json") for warning in ordered]
+
+
 class ChangeAction(StrEnum):
     CREATE = "create"
     UPDATE = "update"
@@ -268,14 +285,25 @@ class TopicRegistryDiffService:
                 )
             )
 
-        if latest is not None and latest.checksum != registry.checksum and not changes:
+        warning_metadata = warning_payloads(warnings)
+        latest_warning_metadata = latest.metadata_.get("warnings", []) if latest else []
+        registry_metadata_changed = bool(
+            latest is not None
+            and (
+                latest.checksum != registry.checksum or latest_warning_metadata != warning_metadata
+            )
+        )
+        if latest is not None and registry_metadata_changed and not changes:
             changes.append(
                 RegistryChange(
                     action=ChangeAction.REGISTRY_UPDATE,
                     entity_type="registry",
                     entity_key="topic-registry",
-                    before={"checksum": latest.checksum},
-                    after={"checksum": registry.checksum},
+                    before={
+                        "checksum": latest.checksum,
+                        "warnings": latest_warning_metadata,
+                    },
+                    after={"checksum": registry.checksum, "warnings": warning_metadata},
                 )
             )
         return RegistryDiff(

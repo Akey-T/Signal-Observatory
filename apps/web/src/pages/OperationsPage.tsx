@@ -401,6 +401,14 @@ export function OperationsPage() {
             <dt>Interrupted schedules · 24h</dt>
             <dd>{data.data_quality.scheduler_interrupted_last_24h}</dd>
           </div>
+          <div>
+            <dt>Partial schedules · 24h</dt>
+            <dd>{data.data_quality.scheduler_partial_last_24h}</dd>
+          </div>
+          <div>
+            <dt>Failed schedules · 24h</dt>
+            <dd>{data.data_quality.scheduler_failed_last_24h}</dd>
+          </div>
         </dl>
       </section>
 

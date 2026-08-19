@@ -1,8 +1,8 @@
 # E04 GitHub discovery and snapshot Pilot
 
-Evidence date: 2026-08-11 UTC
+Evidence date: 2026-08-19 UTC
 
-Pilot status: **Authenticated discovery and baseline complete; second UTC-day Snapshot pending**
+Pilot status: **Accepted — authenticated discovery, idempotency, and cross-day Snapshots passed**
 
 This report records only persisted evidence from the local acceptance environment. The token is
 never printed or stored in this document.
@@ -90,18 +90,21 @@ silently change any Registry entry or create a Topic.
 
 ## Snapshot evidence
 
-| Measure                         |                               Baseline |                         Same-day rerun | Second UTC day |
-| ------------------------------- | -------------------------------------: | -------------------------------------: | -------------: |
-| Ingestion run                   | `d839564c-0b69-4eec-9759-d7dc3b79e856` | `cfaa8aff-5900-4617-82eb-1b48ff2c6776` |        Pending |
-| Repositories due                |                                     51 |                                      0 |        Pending |
-| Requests / Raw responses        |                                51 / 51 |                                  0 / 0 |        Pending |
-| HTTP 200 / errors / rate pauses |                             51 / 0 / 0 |                              0 / 0 / 0 |        Pending |
-| Snapshots created               |                                     51 |                                      0 |        Pending |
-| Core budget remaining           |                           4949 of 5000 |                              Unchanged |        Pending |
+| Measure                         |                               Baseline |                         Same-day rerun |                         Second UTC day |
+| ------------------------------- | -------------------------------------: | -------------------------------------: | -------------------------------------: |
+| Ingestion run                   | `d839564c-0b69-4eec-9759-d7dc3b79e856` | `cfaa8aff-5900-4617-82eb-1b48ff2c6776` | `5bb312a8-0806-4f55-afcb-840154fddb2e` |
+| Repositories due                |                                     51 |                                      0 |                                     51 |
+| Requests / Raw responses        |                                51 / 51 |                                  0 / 0 |                                51 / 51 |
+| HTTP 200 / errors / rate pauses |                             51 / 0 / 0 |                              0 / 0 / 0 |                             51 / 0 / 0 |
+| Snapshots created               |                                     51 |                                      0 |                                     51 |
+| Core budget remaining           |                           4949 of 5000 |                              Unchanged |                           4949 of 5000 |
 
 The baseline created one immutable Snapshot per due tracked Repository. The immediate rerun made no
-request and wrote no Snapshot. A second point will be accepted only after a real later UTC date and
-the normal due interval; clock manipulation or fabricated backfill is prohibited.
+request and wrote no Snapshot. The real 2026-08-13 run created the required second immutable point
+after the normal due interval: 50 Repository transitions changed and 1 remained unchanged.
+Additional real runs on 2026-08-14, 2026-08-18, and 2026-08-19 brought the total to 255 Snapshots
+across five UTC observation dates. Missing dates remain missing; no clock manipulation, fabricated
+backfill, or interpolation was used.
 
 ## Raw evidence and lineage
 
@@ -122,8 +125,8 @@ Repository record, immutable Repository Raw record, Snapshot, and ingestion run.
 
 ## API and Web evidence
 
-`/api/sources/github/status` reported healthy authenticated collection with 51 tracked repositories
-and 51 snapshots. `/api/topics/model-context-protocol/development` reported 9 tracked repositories,
+`/api/sources/github/status` reports healthy authenticated collection with 51 tracked repositories
+and 255 snapshots. `/api/topics/model-context-protocol/development` originally reported 9 tracked repositories,
 80,511 stars, 14,015 forks, and 7 repositories pushed in 30 days. Deltas are correctly absent with
 only a baseline.
 
@@ -131,8 +134,9 @@ Browser acceptance passed `/`, `/topics`, and `/topics/model-context-protocol`. 
 rendered real GitHub metrics, five Repository links, and match evidence with zero console warnings
 or errors.
 
-## Remaining Pilot gate
+## Cross-day acceptance conclusion
 
-Run the normal Snapshot collector after repositories become due on a later UTC observation date,
-then record changed/unchanged counts and final Core budget here. Until that evidence exists, E04 is
-not finally accepted.
+`github verify-cross-day --json` returned `passed` with five real observation dates, 51
+repositories having multiple dates, 200 changed transitions, 4 unchanged transitions, zero Raw or
+fabricated-date mismatches, zero delta mismatches, zero poll-state inconsistencies, and
+`modified_records = 0`. The E04 Pilot is accepted.

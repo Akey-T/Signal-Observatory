@@ -74,7 +74,9 @@ Never delete a Topic to retire it. Set `status: deprecated`; sync records `depre
 - `sync --dry-run` always rolls back.
 - `sync` applies categories, topics, aliases, mappings, version, audit, and data-quality rows in one transaction.
 - Any exception rolls back the whole transaction.
-- A second sync of unchanged content creates no version and no audit rows.
+- A second sync of unchanged content and unchanged validation warnings creates no version and no
+  audit rows. A deployed validation-rule change that alters warning metadata creates a traceable
+  Registry version even when the curated content checksum is unchanged.
 
 Quality records include topic count, active topic count, alias count, unmapped topics, accepted duplicate aliases, orphaned database topics, topics without aliases, and topics without any source mapping. These counts describe registry integrity; they are not Trend Score inputs.
 

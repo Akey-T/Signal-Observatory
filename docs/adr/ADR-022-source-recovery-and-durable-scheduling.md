@@ -20,12 +20,17 @@ container restart could silently skip a due window.
 - Manifest source names remain safely extensible; adding a collector requires registering its Raw
   pointer model, database count surfaces, and lineage sampler in the same change.
 - Coverage deletion is restricted to sources handled by the active derivation implementation.
-- Scheduler windows are persisted before they are due. Restart reconciliation records due plans as
-  `missed` and abandoned running plans as `interrupted`; it does not manufacture a successful run.
+- Scheduler windows are persisted before they are due. Restart reconciliation materializes every
+  elapsed window after the last plan, records unclaimed windows as `missed`, and records abandoned
+  running plans as `interrupted`; it does not manufacture a successful run.
+- Scheduler terminal evidence preserves `succeeded`, `partial`, and `failed` collector outcomes.
+  Window claims are atomic, PostgreSQL permits one advisory-lock leader, and a scheduler coroutine
+  failure removes Worker readiness and terminates the process.
 - Locks are per source. Jobs sharing a source budget remain serialized, while independent sources
   do not block each other.
 - Shared Wikipedia page mappings produce a Registry warning and must retain shared provenance in a
-  future Public collector.
+  future Public collector. Warning metadata changes are versioned even when curated Registry
+  content and its checksum are unchanged.
 
 ## Consequences
 

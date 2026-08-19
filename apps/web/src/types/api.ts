@@ -282,6 +282,8 @@ export type OperationsOverview = {
     registry_warnings: number;
     scheduler_missed_last_24h: number;
     scheduler_interrupted_last_24h: number;
+    scheduler_partial_last_24h: number;
+    scheduler_failed_last_24h: number;
   };
   data_protection: {
     latest_backup: BackupSummary | null;

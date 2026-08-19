@@ -134,3 +134,36 @@ def test_scheduler_anomaly_degrades_an_otherwise_healthy_observatory() -> None:
         )
         == OverallState.DEGRADED
     )
+
+
+def test_registry_warning_degrades_an_otherwise_healthy_observatory() -> None:
+    assert (
+        OperationsService._overall_state(
+            [{"collector_state": "healthy", "implemented": True, "enabled": True}],
+            {"complete": 1, "partial": 0, "forward_only": 0, "empty": 0, "unknown": 0},
+            missing_snapshot_dates=0,
+            registry_warnings=1,
+        )
+        == OverallState.DEGRADED
+    )
+
+
+def test_overall_explanation_names_registry_and_scheduler_anomalies() -> None:
+    explanation = OperationsService._overall_explanation(
+        [
+            {"source": "arxiv", "collector_state": "healthy"},
+            {"source": "github", "collector_state": "healthy"},
+        ],
+        {"complete": 1, "partial": 0, "forward_only": 0, "empty": 0, "unknown": 0},
+        {
+            "missing_snapshot_dates": 0,
+            "registry_warnings": 1,
+            "scheduler_missed_last_24h": 0,
+            "scheduler_interrupted_last_24h": 0,
+            "scheduler_partial_last_24h": 1,
+            "scheduler_failed_last_24h": 0,
+        },
+    )
+
+    assert "Registry has 1 warning" in explanation
+    assert "1 scheduler execution was partial in the last 24 hours" in explanation

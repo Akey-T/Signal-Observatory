@@ -384,6 +384,8 @@ export const operationsOverview: OperationsOverview = {
     registry_warnings: 0,
     scheduler_missed_last_24h: 0,
     scheduler_interrupted_last_24h: 0,
+    scheduler_partial_last_24h: 0,
+    scheduler_failed_last_24h: 0,
   },
   data_protection: {
     latest_backup: {

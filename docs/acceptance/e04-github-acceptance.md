@@ -1,12 +1,12 @@
 # E04 GitHub Developer Collector Acceptance
 
-Evidence date: 2026-08-11 UTC
+Evidence date: 2026-08-19 UTC
 
-Result: **Not yet accepted — second real UTC-day Snapshot outstanding**
+Result: **Accepted — real cross-day Snapshot evidence passed**
 
 The authenticated discovery Pilot, manual mapping review, baseline Snapshot, same-day idempotency,
-real API output, and browser rendering have passed. Final acceptance remains deliberately open
-until a normal poll produces a second persisted observation date.
+real API output, browser rendering, and later-date Snapshot verification have passed. Five real
+UTC observation dates are persisted; missing dates remain explicit and were not backfilled.
 
 ## Implementation
 
@@ -68,16 +68,23 @@ later curated review; observations did not silently modify Registry YAML. See th
 
 ## Snapshot
 
-Status: **Baseline and same-day idempotency passed; later UTC date pending.**
+Status: **Passed — baseline, same-day idempotency, and real cross-day history verified.**
 
 Run `d839564c-0b69-4eec-9759-d7dc3b79e856` polled all 51 due tracked repositories, persisted 51 Raw
 HTTP 200 responses, and created 51 immutable baseline Snapshots with no error or rate pause. The
 immediate rerun `cfaa8aff-5900-4617-82eb-1b48ff2c6776` found zero due repositories and made zero
 requests or writes.
 
+The second real observation run `5bb312a8-0806-4f55-afcb-840154fddb2e` ran on 2026-08-13,
+persisted another 51 Raw responses and 51 immutable Snapshots, and completed without error.
+Subsequent real runs produced 51 Snapshots on 2026-08-14, 2026-08-18, and 2026-08-19. The
+cross-day verifier now reports five observation dates, 51 repositories with multiple dates,
+200 changed transitions, 4 unchanged transitions, and no Raw, fabricated-date, delta, or poll-state
+inconsistency. Missing dates 2026-08-12 and 2026-08-15 through 2026-08-17 remain observable.
+
 Automated tests additionally cover baseline 200, rename continuity, same-day idempotency,
 later-day equal values, changed values, 304-to-`conditional_304`, safe poll state, isolated 404 and
-other errors, and no fabricated gaps. A real second observation date is still required.
+other errors, and no fabricated gaps.
 
 ## Rate limits
 
@@ -113,7 +120,7 @@ and 51 Repository responses.
 ## API and Web
 
 - `GET /api/sources/github/status` reports healthy authenticated collection, 51 tracked
-  repositories, and 51 snapshots.
+  repositories, 255 snapshots, and five persisted observation dates.
 - `GET /api/topics/{slug}/development` returns persisted metrics, repositories, and match evidence.
 - Model Context Protocol renders 9 tracked repositories, 80,511 stars, 14,015 forks, and 7 pushed
   in 30 days. Baseline-only deltas are correctly absent.
@@ -130,34 +137,31 @@ truthful E03 operational state, not an E04 regression.
 
 ## Tests and quality gate
 
-| Gate                                 | Result                                           |
-| ------------------------------------ | ------------------------------------------------ |
-| `python -m ruff check .`             | Passed                                           |
-| `python -m ruff format --check .`    | Passed                                           |
-| `python -m mypy apps packages db`    | Passed                                           |
-| `python -m pytest`                   | 128 passed, 1 skipped                            |
-| `npm run lint`                       | Passed                                           |
-| `npm run typecheck`                  | Passed                                           |
-| `npm run test`                       | 29 passed                                        |
-| `npm run build`                      | Passed                                           |
-| Empty PostgreSQL migration           | Passed at `20260811_0004`, 26 tables             |
-| Docker Compose config/build/health   | Passed; db, api, worker, and web healthy         |
-| Authenticated dry-run                | Passed; configured auth, zero network and writes |
-| Real discovery and identical rerun   | Passed                                           |
-| Baseline and same-day Snapshot rerun | Passed                                           |
-| Browser Developer-live acceptance    | Passed                                           |
-| Second real UTC-day Snapshot         | **Pending**                                      |
+| Gate                                                | Result                                           |
+| --------------------------------------------------- | ------------------------------------------------ |
+| `python -m ruff check .`                            | Passed                                           |
+| `python -m ruff format --check .`                   | Passed; 166 files                                |
+| `python -m mypy apps packages config db collectors` | Passed; 79 source files                          |
+| `python -m pytest`                                  | 176 passed, 2 skipped                            |
+| `npm run lint`                                      | Passed                                           |
+| `npm run format:check`                              | Passed                                           |
+| `npm run typecheck`                                 | Passed                                           |
+| `npm run test`                                      | 33 passed                                        |
+| `npm run build`                                     | Passed; 53 modules transformed                   |
+| Empty PostgreSQL migration                          | Passed at `20260811_0004`, 26 tables             |
+| Docker Compose config/build/health                  | Passed; db, api, worker, and web healthy         |
+| Authenticated dry-run                               | Passed; configured auth, zero network and writes |
+| Real discovery and identical rerun                  | Passed                                           |
+| Baseline and same-day Snapshot rerun                | Passed                                           |
+| Browser Developer-live acceptance                   | Passed                                           |
+| Second real UTC-day Snapshot                        | Passed; verifier now sees five real UTC dates    |
 
-## Outstanding acceptance gate
+## Cross-day acceptance conclusion
 
-1. After the normal due interval and on a later UTC date, run the Snapshot collector.
-2. Confirm a second immutable point, changed and unchanged handling, Core budget, and error or pause
-   counters from persisted evidence.
-3. Re-run the required quality gates if code changes occur, update the Pilot report, and change this
-   result to **Accepted** only if every E04 definition-of-done item passes.
-
-No clock manipulation, manual database insertion, interpolation, or fabricated backfill may satisfy
-this gate.
+`github verify-cross-day --json` returned `passed` with `modified_records = 0`. It verified five
+real observation dates, changed and unchanged transitions, exact Raw/Snapshot linkage, deltas, and
+poll state. No clock manipulation, manual database insertion, interpolation, or fabricated
+backfill was used. E04 is accepted.
 
 ## Known limitations
 
@@ -173,5 +177,5 @@ this gate.
 
 ## Next recommended Epic
 
-After—and only after—this report becomes **Accepted**, the next recommendation is **E05 — Hacker
-News Community Collector**. No E05 code is implemented here.
+With this report accepted, the next recommendation is **E05 — Hacker News Community Collector**.
+No E05 code is implemented here.

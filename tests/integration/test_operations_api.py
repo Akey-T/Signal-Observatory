@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import httpx
@@ -17,6 +17,8 @@ from observatory_db.coverage_models import (
 from observatory_db.models import (
     IngestionRun,
     IngestionStatus,
+    SchedulerExecution,
+    SchedulerExecutionStatus,
     Source,
     Topic,
     TopicSourceMapping,
@@ -109,6 +111,25 @@ async def test_operations_and_coverage_endpoints_are_truthful(
                         "partial_mapping_count": 0,
                     },
                 ),
+                *[
+                    SchedulerExecution(
+                        job_name=f"fixture_{status.value}",
+                        source_name="arxiv",
+                        scheduled_at=datetime.now(UTC) - timedelta(minutes=index + 1),
+                        started_at=datetime.now(UTC) - timedelta(minutes=index + 1),
+                        finished_at=datetime.now(UTC),
+                        status=status,
+                        metadata_={},
+                    )
+                    for index, status in enumerate(
+                        (
+                            SchedulerExecutionStatus.MISSED,
+                            SchedulerExecutionStatus.INTERRUPTED,
+                            SchedulerExecutionStatus.PARTIAL,
+                            SchedulerExecutionStatus.FAILED,
+                        )
+                    )
+                ],
             ]
         )
         session.commit()
@@ -138,8 +159,14 @@ async def test_operations_and_coverage_endpoints_are_truthful(
     assert operations_payload["coverage_summary"]["forward_only"] == 1
     assert operations_payload["data_quality"]["partial_mappings"] == 1
     assert operations_payload["data_quality"]["raw_checksum_failures"] is None
-    assert operations_payload["data_quality"]["scheduler_missed_last_24h"] == 0
-    assert operations_payload["data_quality"]["scheduler_interrupted_last_24h"] == 0
+    assert operations_payload["data_quality"]["scheduler_missed_last_24h"] == 1
+    assert operations_payload["data_quality"]["scheduler_interrupted_last_24h"] == 1
+    assert operations_payload["data_quality"]["scheduler_partial_last_24h"] == 1
+    assert operations_payload["data_quality"]["scheduler_failed_last_24h"] == 1
+    assert "1 scheduler execution was missed" in operations_payload["explanation"]
+    assert "1 scheduler execution was interrupted" in operations_payload["explanation"]
+    assert "1 scheduler execution was partial" in operations_payload["explanation"]
+    assert "1 scheduler execution was failed" in operations_payload["explanation"]
     assert operations_payload["data_protection"] == {
         "latest_backup": None,
         "latest_verified_backup": None,

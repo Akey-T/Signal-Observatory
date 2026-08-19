@@ -32,7 +32,12 @@ from observatory_db.models import (
 from observatory_db.models import (
     TopicStatus as DatabaseTopicStatus,
 )
-from topic_registry.diff import RegistryChange, RegistryDiff, TopicRegistryDiffService
+from topic_registry.diff import (
+    RegistryChange,
+    RegistryDiff,
+    TopicRegistryDiffService,
+    warning_payloads,
+)
 from topic_registry.models import LoadedRegistry, StrictModel, TopicStatus
 from topic_registry.normalization import normalize_canonical_name
 from topic_registry.source_catalog import SOURCE_CATALOG
@@ -87,9 +92,7 @@ class TopicRegistrySyncService:
                 applied_by=applied_by,
                 metadata_={
                     "warning_count": len(registry_diff.warnings),
-                    "warnings": [
-                        warning.model_dump(mode="json") for warning in registry_diff.warnings
-                    ],
+                    "warnings": warning_payloads(registry_diff.warnings),
                 },
             )
             self.session.add(version)

@@ -72,11 +72,16 @@ real UTC observation date returns `PENDING`; it does not generate another snapsh
 counts only persisted scheduler-tagged runs and allows legitimate partial runs as evidence when
 their errors and cursor outcomes are recorded. Manual runs never become scheduled evidence.
 
-Expected windows are persisted in `scheduler_executions` before they become due. A normal run
-transitions `scheduled → running → succeeded|failed`. On Worker restart, a due unclaimed plan is
-recorded as `missed`, while a previously running plan is recorded as `interrupted`. Neither state
-triggers a hidden manual replay. arXiv and GitHub have independent execution locks; GitHub snapshot
-and discovery remain serialized with each other because they share one source budget.
+Expected windows are persisted in `scheduler_executions` before they become due. A run transitions
+`scheduled → running → succeeded|partial|failed` using the collector's persisted terminal outcome;
+a returned partial or failed collection is never promoted to scheduler success. On Worker restart,
+every elapsed window after the last materialized plan is created and recorded as `missed`, while a
+previously running plan is recorded as `interrupted`. Neither state triggers a hidden manual replay.
+Window claims are atomic and one PostgreSQL advisory leader owns scheduling. arXiv and GitHub have
+independent execution locks; GitHub snapshot and discovery remain serialized with each other
+because they share one source budget. Missed, interrupted, partial, and failed counts are exposed
+separately in the Operations API and UI. Registry warnings and each scheduler anomaly both degrade
+the overall Operations state and are named in its explanation.
 
 ## Backup scope
 

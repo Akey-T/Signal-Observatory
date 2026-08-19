@@ -137,12 +137,12 @@ describe("Overview", () => {
     expect(screen.getByText("Not initialized")).toBeInTheDocument();
     expect(
       screen.getByText(
-        "arXiv + GitHub interfaces implemented · 2 channels pending",
+        "arXiv + GitHub collecting · Community + Public pending",
       ),
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "E03 soak · E04 cross-day pending · E04.5 operations online",
+        "E03 recovery soak · E04 cross-day accepted · E04.5 operations online",
       ),
     ).toBeInTheDocument();
     expect(
@@ -325,6 +325,8 @@ describe("Operations", () => {
     expect(screen.getByText("Raw checksum failures")).toBeInTheDocument();
     expect(screen.getByText("Missed schedules · 24h")).toBeInTheDocument();
     expect(screen.getByText("Interrupted schedules · 24h")).toBeInTheDocument();
+    expect(screen.getByText("Partial schedules · 24h")).toBeInTheDocument();
+    expect(screen.getByText("Failed schedules · 24h")).toBeInTheDocument();
     expect(screen.getByText("Not verified")).toBeInTheDocument();
     expect(screen.queryByText(/coverage \d+%/i)).not.toBeInTheDocument();
   });

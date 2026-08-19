@@ -40,6 +40,7 @@ class SchedulerExecutionStatus(StrEnum):
     SCHEDULED = "scheduled"
     RUNNING = "running"
     SUCCEEDED = "succeeded"
+    PARTIAL = "partial"
     FAILED = "failed"
     MISSED = "missed"
     INTERRUPTED = "interrupted"

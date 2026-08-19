@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from arxiv_collector import ArxivCollectionService
 from github_collector import GithubCollectionService
+from observatory_db.models import SchedulerExecutionStatus
 from observatory_db.session import create_database_engine, wait_for_database
 from observatory_operations import CoverageDeriver, SchedulerLedger
 from signal_observatory_api.logging import configure_logging
@@ -21,7 +22,7 @@ from signal_observatory_config import Settings, get_settings
 
 logger = structlog.get_logger("worker")
 WallClock = Callable[[], datetime]
-Job = Callable[[], Awaitable[None]]
+Job = Callable[[], Awaitable[SchedulerExecutionStatus]]
 
 
 def next_cron_run(schedule: str, now: datetime, *, setting_name: str) -> datetime:
@@ -64,6 +65,46 @@ def next_arxiv_run(schedule: str, now: datetime) -> datetime:
     return next_cron_run(schedule, now, setting_name="ARXIV_SCHEDULE")
 
 
+def elapsed_cron_runs(
+    schedule: str,
+    *,
+    after: datetime,
+    until: datetime,
+    setting_name: str,
+) -> tuple[datetime, ...]:
+    """Materialize every expected window after an existing plan through wall-clock now."""
+
+    if after.tzinfo is None or after.utcoffset() is None:
+        raise ValueError("last scheduler window must be timezone-aware")
+    if until.tzinfo is None or until.utcoffset() is None:
+        raise ValueError("scheduler reconciliation time must be timezone-aware")
+    cursor = after.astimezone(UTC)
+    boundary = until.astimezone(UTC)
+    elapsed: list[datetime] = []
+    while True:
+        candidate = next_cron_run(schedule, cursor, setting_name=setting_name)
+        if candidate > boundary:
+            return tuple(elapsed)
+        elapsed.append(candidate)
+        cursor = candidate
+
+
+def scheduler_status_for_collector(status: str) -> SchedulerExecutionStatus:
+    """Map persisted collector terminal states without inventing scheduler success."""
+
+    try:
+        resolved = SchedulerExecutionStatus(status)
+    except ValueError as error:
+        raise ValueError(f"collector returned unsupported terminal status: {status}") from error
+    if resolved not in {
+        SchedulerExecutionStatus.SUCCEEDED,
+        SchedulerExecutionStatus.PARTIAL,
+        SchedulerExecutionStatus.FAILED,
+    }:
+        raise ValueError(f"collector returned non-terminal status: {status}")
+    return resolved
+
+
 async def wait_until_due(
     scheduled_at: datetime,
     stop_event: asyncio.Event,
@@ -99,7 +140,19 @@ async def scheduled_job(
     wall_clock: WallClock = lambda: datetime.now(UTC),
 ) -> None:
     if ledger is not None:
-        for reconciled in ledger.reconcile(name, now=wall_clock()):
+        observed_at = wall_clock()
+        materialized_windows = ledger.materialized_windows(name)
+        if materialized_windows:
+            known_windows = set(materialized_windows)
+            for elapsed_window in elapsed_cron_runs(
+                schedule,
+                after=materialized_windows[0],
+                until=observed_at,
+                setting_name=setting_name,
+            ):
+                if elapsed_window not in known_windows:
+                    ledger.plan(name, source_name, elapsed_window)
+        for reconciled in ledger.reconcile(name, now=observed_at):
             logger.warning(
                 "collector_schedule_window_reconciled",
                 job=reconciled.job_name,
@@ -114,44 +167,53 @@ async def scheduled_job(
         logger.info("collector_job_scheduled", job=name, scheduled_at=scheduled_at.isoformat())
         if not await wait_until_due(scheduled_at, stop_event, wall_clock=wall_clock):
             return
-        try:
-            async with execution_lock:
-                if stop_event.is_set():
-                    return
-                if ledger is not None and not ledger.start(name, scheduled_at, now=wall_clock()):
+        async with execution_lock:
+            if stop_event.is_set():
+                return
+            if ledger is not None and not ledger.start(name, scheduled_at, now=wall_clock()):
+                logger.warning(
+                    "collector_schedule_window_not_claimed",
+                    job=name,
+                    source=source_name,
+                    scheduled_at=scheduled_at.isoformat(),
+                )
+                continue
+            try:
+                outcome = await job()
+            except Exception as error:
+                if ledger is not None:
+                    ledger.finish(
+                        name,
+                        scheduled_at,
+                        now=wall_clock(),
+                        status=SchedulerExecutionStatus.FAILED,
+                        error_type=type(error).__name__,
+                    )
+                logger.exception(
+                    "scheduled_collector_job_failed",
+                    job=name,
+                    error_type=type(error).__name__,
+                )
+            else:
+                if ledger is not None:
+                    ledger.finish(
+                        name,
+                        scheduled_at,
+                        now=wall_clock(),
+                        status=outcome,
+                        error_type=(
+                            None
+                            if outcome == SchedulerExecutionStatus.SUCCEEDED
+                            else f"collector_{outcome.value}"
+                        ),
+                    )
+                if outcome != SchedulerExecutionStatus.SUCCEEDED:
                     logger.warning(
-                        "collector_schedule_window_not_claimed",
+                        "scheduled_collector_job_incomplete",
                         job=name,
                         source=source_name,
-                        scheduled_at=scheduled_at.isoformat(),
+                        status=outcome.value,
                     )
-                    continue
-                try:
-                    await job()
-                except Exception as error:
-                    if ledger is not None:
-                        ledger.finish(
-                            name,
-                            scheduled_at,
-                            now=wall_clock(),
-                            succeeded=False,
-                            error_type=type(error).__name__,
-                        )
-                    raise
-                else:
-                    if ledger is not None:
-                        ledger.finish(
-                            name,
-                            scheduled_at,
-                            now=wall_clock(),
-                            succeeded=True,
-                        )
-        except Exception as error:
-            logger.exception(
-                "scheduled_collector_job_failed",
-                job=name,
-                error_type=type(error).__name__,
-            )
 
 
 async def scheduler_host(
@@ -167,7 +229,7 @@ async def scheduler_host(
         async with coverage_lock:
             CoverageDeriver(session).rebuild()
 
-    async def collect_arxiv() -> None:
+    async def collect_arxiv() -> SchedulerExecutionStatus:
         with Session(engine) as session:
             summary = await ArxivCollectionService(session, settings).collect(trigger="scheduled")
             await rebuild_coverage(session)
@@ -178,8 +240,9 @@ async def scheduler_host(
             api_requests=summary.api_requests,
             records_received=summary.entries_received,
         )
+        return scheduler_status_for_collector(summary.status)
 
-    async def snapshot_github() -> None:
+    async def snapshot_github() -> SchedulerExecutionStatus:
         with Session(engine) as session:
             summary = await GithubCollectionService(session, settings).snapshot()
             await rebuild_coverage(session)
@@ -190,8 +253,9 @@ async def scheduler_host(
             requests=summary.requests_sent,
             snapshots=summary.snapshots_created,
         )
+        return scheduler_status_for_collector(summary.status)
 
-    async def discover_github() -> None:
+    async def discover_github() -> SchedulerExecutionStatus:
         with Session(engine) as session:
             summary = await GithubCollectionService(session, settings).discover()
             await rebuild_coverage(session)
@@ -202,49 +266,65 @@ async def scheduler_host(
             requests=summary.requests_sent,
             repositories=summary.unique_repositories,
         )
+        return scheduler_status_for_collector(summary.status)
 
-    tasks = [
-        asyncio.create_task(
-            scheduled_job(
-                name="arxiv_daily",
-                source_name="arxiv",
-                schedule=settings.arxiv_schedule,
-                setting_name="ARXIV_SCHEDULE",
-                stop_event=stop_event,
-                execution_lock=execution_locks["arxiv"],
-                job=collect_arxiv,
-                ledger=ledger,
+    with ledger.leadership():
+        tasks = [
+            asyncio.create_task(
+                scheduled_job(
+                    name="arxiv_daily",
+                    source_name="arxiv",
+                    schedule=settings.arxiv_schedule,
+                    setting_name="ARXIV_SCHEDULE",
+                    stop_event=stop_event,
+                    execution_lock=execution_locks["arxiv"],
+                    job=collect_arxiv,
+                    ledger=ledger,
+                )
+            ),
+            asyncio.create_task(
+                scheduled_job(
+                    name="github_daily_snapshot",
+                    source_name="github",
+                    schedule=settings.github_snapshot_schedule,
+                    setting_name="GITHUB_SNAPSHOT_SCHEDULE",
+                    stop_event=stop_event,
+                    execution_lock=execution_locks["github"],
+                    job=snapshot_github,
+                    ledger=ledger,
+                )
+            ),
+            asyncio.create_task(
+                scheduled_job(
+                    name="github_weekly_discovery",
+                    source_name="github",
+                    schedule=settings.github_discovery_schedule,
+                    setting_name="GITHUB_DISCOVERY_SCHEDULE",
+                    stop_event=stop_event,
+                    execution_lock=execution_locks["github"],
+                    job=discover_github,
+                    ledger=ledger,
+                )
+            ),
+        ]
+        stop_waiter = asyncio.create_task(stop_event.wait())
+        try:
+            completed, _pending = await asyncio.wait(
+                [*tasks, stop_waiter],
+                return_when=asyncio.FIRST_COMPLETED,
             )
-        ),
-        asyncio.create_task(
-            scheduled_job(
-                name="github_daily_snapshot",
-                source_name="github",
-                schedule=settings.github_snapshot_schedule,
-                setting_name="GITHUB_SNAPSHOT_SCHEDULE",
-                stop_event=stop_event,
-                execution_lock=execution_locks["github"],
-                job=snapshot_github,
-                ledger=ledger,
-            )
-        ),
-        asyncio.create_task(
-            scheduled_job(
-                name="github_weekly_discovery",
-                source_name="github",
-                schedule=settings.github_discovery_schedule,
-                setting_name="GITHUB_DISCOVERY_SCHEDULE",
-                stop_event=stop_event,
-                execution_lock=execution_locks["github"],
-                job=discover_github,
-                ledger=ledger,
-            )
-        ),
-    ]
-    try:
-        await stop_event.wait()
-    finally:
-        await asyncio.gather(*tasks)
+            if stop_waiter in completed:
+                await asyncio.gather(*tasks)
+                return
+            stop_event.set()
+            results = await asyncio.gather(*tasks, return_exceptions=True)
+            for result in results:
+                if isinstance(result, BaseException):
+                    raise result
+            raise RuntimeError("a scheduler job exited unexpectedly")
+        finally:
+            stop_waiter.cancel()
+            await asyncio.gather(stop_waiter, return_exceptions=True)
 
 
 async def serve(settings: Settings, *, stop_event: asyncio.Event | None = None) -> None:
@@ -284,12 +364,22 @@ async def serve(settings: Settings, *, stop_event: asyncio.Event | None = None) 
     ready_file.parent.mkdir(parents=True, exist_ok=True)
     ready_file.write_text("ready\n", encoding="utf-8")
     scheduler_task = asyncio.create_task(scheduler_host(settings, engine, shutdown))
+    shutdown_waiter = asyncio.create_task(shutdown.wait())
     logger.info("worker_started", **settings.public_summary())
     try:
-        await shutdown.wait()
-    finally:
-        await scheduler_task
+        await asyncio.wait(
+            [scheduler_task, shutdown_waiter],
+            return_when=asyncio.FIRST_COMPLETED,
+        )
         ready_file.unlink(missing_ok=True)
+        await scheduler_task
+    finally:
+        shutdown.set()
+        ready_file.unlink(missing_ok=True)
+        shutdown_waiter.cancel()
+        await asyncio.gather(shutdown_waiter, return_exceptions=True)
+        if not scheduler_task.done():
+            await asyncio.gather(scheduler_task, return_exceptions=True)
         await asyncio.to_thread(engine.dispose)
         logger.info("worker_stopped")
 
