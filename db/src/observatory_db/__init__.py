@@ -11,6 +11,15 @@ from observatory_db.arxiv_models import (
     ArxivRawResponse,
     ArxivTopicMatch,
 )
+from observatory_db.attention_models import (
+    AttentionDocument,
+    AttentionObservation,
+    AttentionObservationEvidence,
+)
+from observatory_db.attention_repositories import (
+    AttentionDocumentRepository,
+    AttentionObservationRepository,
+)
 from observatory_db.base import Base
 from observatory_db.coverage_models import CoverageStatus, CoverageStrategy, TopicSourceCoverage
 from observatory_db.github_models import (
@@ -38,6 +47,11 @@ from observatory_db.models import (
 
 __all__ = [
     "Base",
+    "AttentionDocument",
+    "AttentionObservation",
+    "AttentionObservationEvidence",
+    "AttentionDocumentRepository",
+    "AttentionObservationRepository",
     "ArxivAuthor",
     "ArxivCategory",
     "ArxivCollectionCursor",

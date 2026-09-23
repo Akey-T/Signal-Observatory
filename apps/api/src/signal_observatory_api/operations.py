@@ -105,6 +105,7 @@ class OperationsResponse(APIModel):
     sources: list[SourceOperationalHealth]
     coverage_summary: dict[str, int]
     data_quality: dict[str, Any]
+    scheduler: dict[str, Any]
     data_protection: dict[str, Any]
     generated_at: datetime
 

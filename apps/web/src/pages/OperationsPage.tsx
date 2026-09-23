@@ -151,6 +151,94 @@ function formatAge(seconds: number): string {
   return `${Math.floor(seconds / 86400)} days`;
 }
 
+function formatTimestamp(value: string | null): string {
+  if (!value) return "—";
+  const timestamp = new Date(value);
+  return Number.isNaN(timestamp.getTime())
+    ? "Unavailable"
+    : timestamp.toISOString().replace(".000Z", "Z");
+}
+
+function SchedulerStatusSection({
+  data,
+}: {
+  data: OperationsOverview["scheduler"];
+}) {
+  const latest = data.latest_execution;
+  const stateClass = (state: "passed" | "pending" | "failed") =>
+    state === "passed"
+      ? "healthy"
+      : state === "failed"
+        ? "failed"
+        : "not_initialized";
+  return (
+    <section
+      className="operations-section scheduler-status"
+      aria-labelledby="scheduler-status-title"
+    >
+      <div className="operations-section__heading">
+        <div>
+          <p className="kicker">UTC dispatch evidence</p>
+          <h2 id="scheduler-status-title">Scheduler Status</h2>
+        </div>
+        <p>
+          Dispatch timing is measured separately from the collector outcome.
+        </p>
+      </div>
+      <dl className="scheduler-status__grid">
+        <div>
+          <dt>Continuity</dt>
+          <dd>
+            <span
+              className={`health-state health-state--${stateClass(data.continuity_state)}`}
+            >
+              {titleCase(data.continuity_state)}
+            </span>
+          </dd>
+          <small>
+            {data.continuity_windows_observed}/{data.continuity_days_required}{" "}
+            daily windows
+          </small>
+        </div>
+        <div>
+          <dt>Punctuality qualification</dt>
+          <dd>
+            <span
+              className={`health-state health-state--${stateClass(data.punctuality_state)}`}
+            >
+              {titleCase(data.punctuality_state)}
+            </span>
+          </dd>
+          <small>
+            {data.qualification_completed}/{data.qualification_required}{" "}
+            post-deployment windows · threshold ≤{" "}
+            {data.on_time_threshold_seconds}s
+          </small>
+        </div>
+        <div>
+          <dt>Latest scheduled</dt>
+          <dd>{formatTimestamp(latest?.scheduled_at ?? null)}</dd>
+          <small>
+            Actual start {formatTimestamp(latest?.started_at ?? null)}
+          </small>
+        </div>
+        <div>
+          <dt>Latest dispatch</dt>
+          <dd>{latest ? titleCase(latest.timing_state) : "No evidence"}</dd>
+          <small>
+            Delay {latest?.dispatch_delay_seconds ?? "—"}s · collector{" "}
+            {titleCase(latest?.collector_status ?? "not started")}
+          </small>
+        </div>
+      </dl>
+      <p className="scheduler-status__note">
+        {data.message} Next qualification window{" "}
+        {formatTimestamp(data.next_qualification_window)}.
+      </p>
+    </section>
+  );
+}
+
 function DataProtectionSection({
   data,
 }: {
@@ -336,6 +424,8 @@ export function OperationsPage() {
         <p>{data.explanation}</p>
       </section>
 
+      <SchedulerStatusSection data={data.scheduler} />
+
       <DataProtectionSection data={data.data_protection} />
 
       <section className="operations-section" aria-labelledby="sources-title">
@@ -408,6 +498,10 @@ export function OperationsPage() {
           <div>
             <dt>Failed schedules · 24h</dt>
             <dd>{data.data_quality.scheduler_failed_last_24h}</dd>
+          </div>
+          <div>
+            <dt>Late dispatches · 24h</dt>
+            <dd>{data.data_quality.scheduler_late_last_24h}</dd>
           </div>
         </dl>
       </section>

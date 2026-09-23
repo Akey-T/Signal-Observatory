@@ -21,6 +21,7 @@ from sqlalchemy.orm import Session
 from arxiv_collector import (
     ArxivCollectionError,
     ArxivCollectionService,
+    ArxivCursorAuditor,
     ArxivQueryService,
     ArxivRunSummary,
 )
@@ -47,6 +48,7 @@ from observatory_operations import (
     RawIntegrityVerifier,
     RestoreError,
     RestoreService,
+    SchedulerPunctualityVerifier,
 )
 from observatory_operations.postgres_backup import PostgresBackupTool, PostgresToolError
 from signal_observatory_config import Settings
@@ -68,12 +70,14 @@ github_app = typer.Typer(help="Discover and snapshot public GitHub repositories.
 coverage_app = typer.Typer(help="Rebuild and inspect deterministic data coverage.")
 ops_app = typer.Typer(help="Inspect operational health and immutable Raw integrity.")
 backup_app = typer.Typer(help="Create, verify, restore, and drill full recovery units.")
+scheduler_app = typer.Typer(help="Inspect durable scheduler timing evidence.")
 app.add_typer(topics_app, name="topics")
 app.add_typer(arxiv_app, name="arxiv")
 app.add_typer(github_app, name="github")
 app.add_typer(coverage_app, name="coverage")
 app.add_typer(ops_app, name="ops")
 app.add_typer(backup_app, name="backup")
+app.add_typer(scheduler_app, name="scheduler")
 
 
 def _emit(payload: object, *, as_json: bool) -> None:
@@ -579,6 +583,56 @@ def arxiv_status(
     )
 
 
+def _cursor_audit(session: Session) -> dict[str, Any]:
+    return ArxivCursorAuditor(session, Settings()).audit()
+
+
+def _emit_cursor_audit(payload: dict[str, Any], *, as_json: bool) -> None:
+    if as_json:
+        _emit(payload, as_json=True)
+        return
+    _emit(
+        "arXiv Cursor Audit\n"
+        f"Integrity: {str(payload['status']).upper()}\n"
+        f"Parent cursors succeeded/partial/failed/pending: "
+        f"{payload['succeeded']}/{payload['partial']}/{payload['failed']}/"
+        f"{payload['pending_or_running']}\n"
+        f"Partition cursors: {payload['incremental_partition_cursors']}\n"
+        f"Mappings without cursor: {payload['mapping_without_incremental_cursor']}\n"
+        f"Topics without arXiv mapping: {payload['active_topics_without_arxiv_mapping']}\n"
+        "Durable run / Raw / post-failure / unexplained anomalies: "
+        f"{payload['cursor_without_durable_run']}/"
+        f"{payload['cursor_without_raw_evidence']}/"
+        f"{payload['cursor_advanced_past_failure']}/"
+        f"{payload['unexplained_cursor_state']}\n"
+        f"{payload['message']} No data was modified.",
+        as_json=False,
+    )
+
+
+@arxiv_app.command("cursor-audit")
+def arxiv_cursor_audit(
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Report parent/partition cursor coverage without changing data."""
+
+    payload: dict[str, Any] = _with_session(as_json, _cursor_audit)
+    _emit_cursor_audit(payload, as_json=as_json)
+
+
+@arxiv_app.command("verify-cursors")
+def arxiv_verify_cursors(
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Verify that successful cursor advancement has durable run and Raw evidence."""
+
+    payload: dict[str, Any] = _with_session(as_json, _cursor_audit)
+    _emit_cursor_audit(payload, as_json=as_json)
+    exit_code = int(payload["exit_code"])
+    if exit_code:
+        raise typer.Exit(exit_code)
+
+
 @arxiv_app.command("sample")
 def arxiv_sample(
     topic: Annotated[str, typer.Option("--topic")],
@@ -1013,6 +1067,63 @@ def arxiv_verify_soak(
             f"{payload['message']}",
             as_json=False,
         )
+    exit_code = int(payload["exit_code"])
+    if exit_code:
+        raise typer.Exit(exit_code)
+
+
+def _scheduler_report(session: Session) -> dict[str, Any]:
+    settings = Settings()
+    return SchedulerPunctualityVerifier(session).status(
+        job_name="arxiv_daily",
+        source_name="arxiv",
+        schedule=settings.arxiv_schedule,
+    )
+
+
+def _emit_scheduler_report(payload: dict[str, Any], *, as_json: bool) -> None:
+    if as_json:
+        _emit(payload, as_json=True)
+        return
+    latest = payload["latest_execution"]
+    latest_line = (
+        f"{latest['scheduled_at']} / {latest['timing_state']} / {latest['collector_status']}"
+        if latest
+        else "none"
+    )
+    _emit(
+        "arXiv Daily Scheduler\n"
+        f"Continuity: {str(payload['continuity_state']).upper()} "
+        f"({payload['continuity_windows_observed']}/"
+        f"{payload['continuity_days_required']})\n"
+        f"Punctuality: {str(payload['punctuality_state']).upper()} "
+        f"({payload['qualification_completed']}/"
+        f"{payload['qualification_required']})\n"
+        f"On-time threshold: {payload['on_time_threshold_seconds']} seconds\n"
+        f"Latest scheduled / timing / collector: {latest_line}\n"
+        f"{payload['message']} No data was modified.",
+        as_json=False,
+    )
+
+
+@scheduler_app.command("status")
+def scheduler_status(
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Show continuity and punctuality without changing scheduler state."""
+
+    payload: dict[str, Any] = _with_session(as_json, _scheduler_report)
+    _emit_scheduler_report(payload, as_json=as_json)
+
+
+@scheduler_app.command("verify-punctuality")
+def scheduler_verify_punctuality(
+    as_json: Annotated[bool, typer.Option("--json")] = False,
+) -> None:
+    """Verify three real post-deployment arXiv dispatch windows."""
+
+    payload: dict[str, Any] = _with_session(as_json, _scheduler_report)
+    _emit_scheduler_report(payload, as_json=as_json)
     exit_code = int(payload["exit_code"])
     if exit_code:
         raise typer.Exit(exit_code)

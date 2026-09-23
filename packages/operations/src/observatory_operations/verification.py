@@ -156,17 +156,22 @@ class GithubCrossDayVerifier:
                 continue
             repositories = development["top_repositories"]
             summary = development["summary"]
-            all_have_previous = bool(repositories) and all(
-                repository["stars_delta"] is not None and repository["forks_delta"] is not None
+            observed_repositories = [
+                repository
                 for repository in repositories
+                if repository["latest_snapshot_at"] is not None
+            ]
+            all_have_previous = bool(observed_repositories) and all(
+                repository["stars_delta"] is not None and repository["forks_delta"] is not None
+                for repository in observed_repositories
             )
             expected_stars = (
-                sum(int(repository["stars_delta"]) for repository in repositories)
+                sum(int(repository["stars_delta"]) for repository in observed_repositories)
                 if all_have_previous
                 else None
             )
             expected_forks = (
-                sum(int(repository["forks_delta"]) for repository in repositories)
+                sum(int(repository["forks_delta"]) for repository in observed_repositories)
                 if all_have_previous
                 else None
             )

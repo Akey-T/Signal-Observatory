@@ -21,7 +21,15 @@ from observatory_operations.models import (
     freshness_state,
 )
 from observatory_operations.restore import DisasterRecoveryDrill, RestoreError, RestoreService
-from observatory_operations.scheduler import ReconciledExecution, SchedulerLedger
+from observatory_operations.scheduler import (
+    DEFAULT_ON_TIME_THRESHOLD_SECONDS,
+    PUNCTUALITY_CONTRACT,
+    ReconciledExecution,
+    SchedulerLedger,
+    SchedulerPunctualityVerifier,
+    SchedulerTimingState,
+    scheduler_timing,
+)
 from observatory_operations.verification import ArxivSoakVerifier, GithubCrossDayVerifier
 
 __all__ = [
@@ -34,16 +42,21 @@ __all__ = [
     "CollectorState",
     "CoverageDeriver",
     "CoverageQueryService",
+    "DEFAULT_ON_TIME_THRESHOLD_SECONDS",
     "DisasterRecoveryDrill",
     "FreshnessState",
     "GithubCrossDayVerifier",
     "MissingObservationDetector",
     "OverallState",
+    "PUNCTUALITY_CONTRACT",
     "OperationsService",
     "RawIntegrityVerifier",
     "ReconciledExecution",
     "RestoreError",
     "RestoreService",
     "SchedulerLedger",
+    "SchedulerPunctualityVerifier",
+    "SchedulerTimingState",
     "freshness_state",
+    "scheduler_timing",
 ]

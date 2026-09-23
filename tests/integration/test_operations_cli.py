@@ -51,6 +51,10 @@ def test_coverage_and_read_only_operations_commands(
     )
     cross_day = runner.invoke(app, ["github", "verify-cross-day", "--json"])
     soak = runner.invoke(app, ["arxiv", "verify-soak", "--days", "7", "--json"])
+    cursor_audit = runner.invoke(app, ["arxiv", "cursor-audit", "--json"])
+    cursor_verify = runner.invoke(app, ["arxiv", "verify-cursors", "--json"])
+    scheduler_status = runner.invoke(app, ["scheduler", "status", "--json"])
+    punctuality = runner.invoke(app, ["scheduler", "verify-punctuality", "--json"])
     raw = runner.invoke(app, ["ops", "verify-raw", "--json"])
     backups = runner.invoke(
         app,
@@ -71,6 +75,13 @@ def test_coverage_and_read_only_operations_commands(
     assert json.loads(cross_day.stdout)["modified_records"] == 0
     assert soak.exit_code == 1
     assert json.loads(soak.stdout)["status"] == "pending"
+    assert cursor_audit.exit_code == 0
+    assert json.loads(cursor_audit.stdout)["mapping_without_incremental_cursor"] == 1
+    assert cursor_verify.exit_code == 0
+    assert scheduler_status.exit_code == 0
+    assert json.loads(scheduler_status.stdout)["punctuality_state"] == "pending"
+    assert punctuality.exit_code == 1
+    assert json.loads(punctuality.stdout)["modified_records"] == 0
     assert raw.exit_code == 0
     assert json.loads(raw.stdout)["state"] == "not_initialized"
     assert backups.exit_code == 0

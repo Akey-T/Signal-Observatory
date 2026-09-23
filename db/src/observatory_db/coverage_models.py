@@ -35,6 +35,9 @@ class CoverageStrategy(StrEnum):
     HISTORICAL_BACKFILL = "historical_backfill"
     FORWARD_SNAPSHOT = "forward_snapshot"
     EVENT_STREAM = "event_stream"
+    FORWARD_ONLY = "forward_only"
+    BOUNDED_HISTORICAL = "bounded_historical"
+    HISTORICAL_PLUS_FORWARD = "historical_plus_forward"
     UNKNOWN = "unknown"
 
 

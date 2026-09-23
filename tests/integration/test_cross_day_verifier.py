@@ -77,6 +77,29 @@ async def test_cross_day_is_pending_then_passes_and_detects_snapshot_mutation(
 
         original_development = GithubQueryService.development
 
+        def with_unobserved_repository(
+            query_service: GithubQueryService, slug: str, *, limit: int = 20
+        ) -> dict[str, Any] | None:
+            payload = original_development(query_service, slug, limit=limit)
+            assert payload is not None
+            payload["top_repositories"].append(
+                {
+                    "latest_snapshot_at": None,
+                    "stars_delta": None,
+                    "forks_delta": None,
+                }
+            )
+            return payload
+
+        with monkeypatch.context() as patcher:
+            patcher.setattr(
+                GithubQueryService,
+                "development",
+                with_unobserved_repository,
+            )
+            unobserved_is_excluded = GithubCrossDayVerifier(session, runtime).verify()
+        assert unobserved_is_excluded["status"] == "passed"
+
         def bad_delta(
             query_service: GithubQueryService, slug: str, *, limit: int = 20
         ) -> dict[str, Any] | None:

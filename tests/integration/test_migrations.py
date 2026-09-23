@@ -13,6 +13,9 @@ def test_migration_upgrade_and_downgrade(tmp_path: Path) -> None:
     engine = create_engine(database_url)
     assert set(inspect(engine).get_table_names()) == {
         "alembic_version",
+        "attention_documents",
+        "attention_observation_evidence",
+        "attention_observations",
         "arxiv_authors",
         "arxiv_categories",
         "arxiv_collection_cursors",
@@ -40,6 +43,16 @@ def test_migration_upgrade_and_downgrade(tmp_path: Path) -> None:
         "topic_source_mappings",
         "topic_source_coverage",
         "topics",
+    }
+
+    coverage_check_names = {
+        constraint["name"]
+        for constraint in inspect(engine).get_check_constraints("topic_source_coverage")
+    }
+    assert coverage_check_names == {
+        "ck_topic_source_coverage_expected_observation_count_nonnegative",
+        "ck_topic_source_coverage_missing_observation_count_nonnegative",
+        "ck_topic_source_coverage_observation_count_nonnegative",
     }
 
     command.downgrade(configuration, "base")

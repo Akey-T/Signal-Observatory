@@ -162,6 +162,7 @@ def test_overall_explanation_names_registry_and_scheduler_anomalies() -> None:
             "scheduler_interrupted_last_24h": 0,
             "scheduler_partial_last_24h": 1,
             "scheduler_failed_last_24h": 0,
+            "scheduler_late_last_24h": 0,
         },
     )
 

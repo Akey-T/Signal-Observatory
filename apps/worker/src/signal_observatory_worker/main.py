@@ -16,7 +16,7 @@ from arxiv_collector import ArxivCollectionService
 from github_collector import GithubCollectionService
 from observatory_db.models import SchedulerExecutionStatus
 from observatory_db.session import create_database_engine, wait_for_database
-from observatory_operations import CoverageDeriver, SchedulerLedger
+from observatory_operations import PUNCTUALITY_CONTRACT, CoverageDeriver, SchedulerLedger
 from signal_observatory_api.logging import configure_logging
 from signal_observatory_config import Settings, get_settings
 
@@ -137,6 +137,7 @@ async def scheduled_job(
     execution_lock: asyncio.Lock,
     job: Job,
     ledger: SchedulerLedger | None = None,
+    plan_metadata: dict[str, str] | None = None,
     wall_clock: WallClock = lambda: datetime.now(UTC),
 ) -> None:
     if ledger is not None:
@@ -163,7 +164,7 @@ async def scheduled_job(
     while not stop_event.is_set():
         scheduled_at = next_cron_run(schedule, wall_clock(), setting_name=setting_name)
         if ledger is not None:
-            ledger.plan(name, source_name, scheduled_at)
+            ledger.plan(name, source_name, scheduled_at, metadata=plan_metadata)
         logger.info("collector_job_scheduled", job=name, scheduled_at=scheduled_at.isoformat())
         if not await wait_until_due(scheduled_at, stop_event, wall_clock=wall_clock):
             return
@@ -280,6 +281,7 @@ async def scheduler_host(
                     execution_lock=execution_locks["arxiv"],
                     job=collect_arxiv,
                     ledger=ledger,
+                    plan_metadata={"punctuality_contract": PUNCTUALITY_CONTRACT},
                 )
             ),
             asyncio.create_task(

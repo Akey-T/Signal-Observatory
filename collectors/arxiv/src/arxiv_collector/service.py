@@ -313,7 +313,7 @@ class ArxivCollectionService:
                 )
             )
             try:
-                outcome = await self._collect_window(
+                outcome = await self._collect_incremental_mapping(
                     run=run,
                     mapping=mapping,
                     base_query=base_query,
@@ -321,11 +321,11 @@ class ArxivCollectionService:
                     accumulator=accumulator,
                     max_pages=max_pages,
                     page_size=page_size or self.settings.arxiv_page_size,
-                    mode="incremental",
-                    cursor_override=cursor,
+                    parent_cursor=cursor,
                     started_monotonic=started_monotonic,
                 )
             except ArxivForbiddenError as error:
+                self._fail_incremental_parent(cursor, error)
                 self._record_error(run, mapping, error, critical=True)
                 accumulator.errors += 1
                 accumulator.failed_mappings.add(mapping.id)
@@ -336,6 +336,7 @@ class ArxivCollectionService:
                 ArxivParseError,
                 ArxivQueryError,
             ) as error:
+                self._fail_incremental_parent(cursor, error)
                 self._record_error(run, mapping, error)
                 accumulator.errors += 1
                 accumulator.failed_mappings.add(mapping.id)
@@ -372,6 +373,108 @@ class ArxivCollectionService:
             cursor = boundary
         return tuple(windows)
 
+    async def _collect_incremental_mapping(
+        self,
+        *,
+        run: IngestionRun,
+        mapping: TopicSourceMapping,
+        base_query: str,
+        window: QueryWindow,
+        accumulator: RunAccumulator,
+        max_pages: int | None,
+        page_size: int,
+        parent_cursor: ArxivCollectionCursor,
+        started_monotonic: float,
+    ) -> WindowOutcome:
+        partition = self._partition_checkpoint(parent_cursor, window)
+        if partition is None:
+            outcome = await self._collect_window(
+                run=run,
+                mapping=mapping,
+                base_query=base_query,
+                window=window,
+                accumulator=accumulator,
+                max_pages=max_pages,
+                page_size=page_size,
+                mode="incremental",
+                cursor_override=parent_cursor,
+                started_monotonic=started_monotonic,
+            )
+            if outcome.split is None:
+                return outcome
+            partition = {
+                "version": 1,
+                "root_from": window.window_from.isoformat(),
+                "root_until": window.window_until.isoformat(),
+                "minimum_partition_minutes": (self.settings.arxiv_min_query_partition_minutes),
+                "pending": [self._window_payload(child) for child in outcome.split],
+                "completed": [],
+            }
+            self._save_partition_parent(parent_cursor, partition)
+
+        pending = list(partition["pending"])
+        completed = list(partition["completed"])
+        while pending:
+            child = self._window_from_payload(pending[0])
+            accumulator.planned_queries.append(
+                self._plan_item(mapping, base_query, child, page_size)
+            )
+            child_cursor = self._incremental_partition_cursor(mapping, window, child)
+            try:
+                outcome = await self._collect_window(
+                    run=run,
+                    mapping=mapping,
+                    base_query=base_query,
+                    window=child,
+                    accumulator=accumulator,
+                    max_pages=max_pages,
+                    page_size=page_size,
+                    mode="incremental_part",
+                    cursor_override=child_cursor,
+                    started_monotonic=started_monotonic,
+                )
+            except Exception as error:
+                child_cursor.status = ArxivCursorStatus.FAILED
+                child_cursor.last_error = str(error)
+                child_cursor.checkpoint = {
+                    **child_cursor.checkpoint,
+                    "reason": type(error).__name__,
+                }
+                self.session.commit()
+                raise
+            if outcome.split is not None:
+                pending[0:1] = [self._window_payload(value) for value in outcome.split]
+                partition = {**partition, "pending": pending, "completed": completed}
+                self._save_partition_parent(parent_cursor, partition)
+                continue
+            if outcome.status is not ArxivCursorStatus.SUCCEEDED:
+                partition = {**partition, "pending": pending, "completed": completed}
+                self._save_partition_parent(
+                    parent_cursor,
+                    partition,
+                    reason=child_cursor.last_error or "incremental_partition_incomplete",
+                )
+                return WindowOutcome(outcome.status)
+            completed.append(pending.pop(0))
+            partition = {**partition, "pending": pending, "completed": completed}
+            self._save_partition_parent(parent_cursor, partition)
+
+        parent_cursor.status = ArxivCursorStatus.SUCCEEDED
+        parent_cursor.next_start = 0
+        parent_cursor.last_successful_run_at = self._now()
+        parent_cursor.last_query_from = window.window_from
+        parent_cursor.last_query_until = window.window_until
+        parent_cursor.last_error = None
+        parent_cursor.checkpoint = {
+            **parent_cursor.checkpoint,
+            "reason": None,
+            "partition": {**partition, "status": "completed"},
+            "last_successful_run_id": str(run.run_id),
+        }
+        self.session.commit()
+        self._append_checkpoint(accumulator, parent_cursor)
+        return WindowOutcome(ArxivCursorStatus.SUCCEEDED)
+
     async def _collect_window(
         self,
         *,
@@ -382,12 +485,14 @@ class ArxivCollectionService:
         accumulator: RunAccumulator,
         max_pages: int | None,
         page_size: int,
-        mode: Literal["backfill", "incremental"],
+        mode: Literal["backfill", "incremental", "incremental_part"],
         started_monotonic: float,
         cursor_override: ArxivCollectionCursor | None = None,
     ) -> WindowOutcome:
         cursor = cursor_override or self._cursor(mapping, window)
-        if mode == "backfill" and cursor.status is ArxivCursorStatus.SUCCEEDED:
+        if mode in {"backfill", "incremental_part"} and (
+            cursor.status is ArxivCursorStatus.SUCCEEDED
+        ):
             self._append_checkpoint(accumulator, cursor)
             return WindowOutcome(ArxivCursorStatus.SUCCEEDED)
         cursor.status = ArxivCursorStatus.RUNNING
@@ -395,6 +500,7 @@ class ArxivCollectionService:
         cursor.window_from = window.window_from
         cursor.window_until = window.window_until
         cursor.checkpoint = {
+            **cursor.checkpoint,
             "topic_slug": mapping.topic.slug,
             "mapping_id": str(mapping.id),
             "window_from": window.window_from.isoformat(),
@@ -507,11 +613,9 @@ class ArxivCollectionService:
                 and feed.total_results > self.settings.arxiv_large_query_threshold
             ):
                 raw_response.parsed_entry_count = len(feed.articles)
-                if mode == "incremental":
-                    return self._pause_cursor(cursor, accumulator, "large_incremental_query")
                 split = self._split_window(window)
                 if split is None:
-                    return self._pause_cursor(cursor, accumulator, "large_query_one_day")
+                    return self._pause_cursor(cursor, accumulator, "large_query_minimum_partition")
                 cursor.status = ArxivCursorStatus.PARTIAL
                 cursor.last_error = "large query partitioned into smaller date windows"
                 cursor.checkpoint = {**cursor.checkpoint, "reason": "large_query_partition"}
@@ -563,6 +667,11 @@ class ArxivCollectionService:
                     default=cursor.last_observed_updated_at,
                 )
                 cursor.last_error = None
+                cursor.checkpoint = {
+                    **cursor.checkpoint,
+                    "reason": None,
+                    "last_successful_run_id": str(run.run_id),
+                }
                 self.session.commit()
                 self._append_checkpoint(accumulator, cursor)
                 return WindowOutcome(ArxivCursorStatus.SUCCEEDED)
@@ -681,6 +790,41 @@ class ArxivCollectionService:
             self.session.flush()
         return cursor
 
+    def _incremental_partition_cursor(
+        self,
+        mapping: TopicSourceMapping,
+        root: QueryWindow,
+        child: QueryWindow,
+    ) -> ArxivCollectionCursor:
+        key = (
+            f"incremental-part:{root.window_from.isoformat()}:{root.window_until.isoformat()}:"
+            f"{child.window_from.isoformat()}:{child.window_until.isoformat()}"
+        )
+        cursor = self.session.scalar(
+            select(ArxivCollectionCursor).where(
+                ArxivCollectionCursor.source_mapping_id == mapping.id,
+                ArxivCollectionCursor.cursor_key == key,
+            )
+        )
+        if cursor is None:
+            cursor = ArxivCollectionCursor(
+                topic_id=mapping.topic_id,
+                source_mapping_id=mapping.id,
+                cursor_key=key,
+                mode="incremental_part",
+                window_from=child.window_from,
+                window_until=child.window_until,
+                next_start=0,
+                checkpoint={
+                    "partition_root_from": root.window_from.isoformat(),
+                    "partition_root_until": root.window_until.isoformat(),
+                },
+                status=ArxivCursorStatus.PENDING,
+            )
+            self.session.add(cursor)
+            self.session.flush()
+        return cursor
+
     def _incremental_window(
         self,
         cursor: ArxivCollectionCursor,
@@ -724,6 +868,79 @@ class ArxivCollectionService:
         self.session.commit()
         self._append_checkpoint(accumulator, cursor)
         return WindowOutcome(ArxivCursorStatus.PARTIAL)
+
+    def _partition_checkpoint(
+        self,
+        cursor: ArxivCollectionCursor,
+        window: QueryWindow,
+    ) -> dict[str, Any] | None:
+        value = cursor.checkpoint.get("partition")
+        if not isinstance(value, dict):
+            return None
+        if (
+            value.get("root_from") != window.window_from.isoformat()
+            or value.get("root_until") != window.window_until.isoformat()
+            or not isinstance(value.get("pending"), list)
+            or not isinstance(value.get("completed"), list)
+        ):
+            return None
+        return dict(value)
+
+    def _save_partition_parent(
+        self,
+        cursor: ArxivCollectionCursor,
+        partition: dict[str, Any],
+        *,
+        reason: str = "large_query_partition",
+    ) -> None:
+        cursor.status = ArxivCursorStatus.PARTIAL
+        cursor.last_error = reason
+        cursor.checkpoint = {
+            **cursor.checkpoint,
+            "reason": reason,
+            "partition": partition,
+        }
+        self.session.commit()
+        self._append_checkpoint_to_log_only(cursor)
+
+    @staticmethod
+    def _append_checkpoint_to_log_only(cursor: ArxivCollectionCursor) -> None:
+        logger.info(
+            "arxiv_incremental_partition_checkpointed",
+            mapping_id=str(cursor.source_mapping_id),
+            pending=len(cursor.checkpoint.get("partition", {}).get("pending", [])),
+            completed=len(cursor.checkpoint.get("partition", {}).get("completed", [])),
+        )
+
+    @staticmethod
+    def _window_payload(window: QueryWindow) -> dict[str, str]:
+        return {
+            "window_from": window.window_from.isoformat(),
+            "window_until": window.window_until.isoformat(),
+        }
+
+    @classmethod
+    def _window_from_payload(cls, payload: object) -> QueryWindow:
+        if not isinstance(payload, dict):
+            raise ArxivCollectionError("invalid incremental partition checkpoint")
+        try:
+            window_from = cls._utc(datetime.fromisoformat(str(payload["window_from"])))
+            window_until = cls._utc(datetime.fromisoformat(str(payload["window_until"])))
+        except (KeyError, ValueError) as error:
+            raise ArxivCollectionError("invalid incremental partition checkpoint") from error
+        if window_until <= window_from:
+            raise ArxivCollectionError("invalid incremental partition window")
+        return QueryWindow(window_from, window_until)
+
+    def _fail_incremental_parent(
+        self,
+        cursor: ArxivCollectionCursor,
+        error: BaseException,
+    ) -> None:
+        cursor.status = ArxivCursorStatus.FAILED
+        cursor.last_error = str(error)
+        cursor.checkpoint = {**cursor.checkpoint, "reason": type(error).__name__}
+        self.session.commit()
 
     def _record_error(
         self,
@@ -949,12 +1166,14 @@ class ArxivCollectionService:
         limit = self.settings.arxiv_max_runtime_minutes * 60
         return self._monotonic() - started_monotonic >= limit
 
-    @staticmethod
-    def _split_window(window: QueryWindow) -> tuple[QueryWindow, QueryWindow] | None:
+    def _split_window(self, window: QueryWindow) -> tuple[QueryWindow, QueryWindow] | None:
         duration = window.window_until - window.window_from
-        if duration <= timedelta(days=1):
+        minimum = timedelta(minutes=self.settings.arxiv_min_query_partition_minutes)
+        if duration <= minimum:
             return None
         midpoint = window.window_from + duration / 2
+        if midpoint - window.window_from < minimum or window.window_until - midpoint < minimum:
+            return None
         return (
             QueryWindow(window.window_from, midpoint),
             QueryWindow(midpoint, window.window_until),

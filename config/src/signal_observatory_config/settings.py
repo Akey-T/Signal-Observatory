@@ -84,7 +84,24 @@ class Settings(BaseSettings):
         validation_alias=AliasChoices("ARXIV_SCHEDULE", "SIGNAL_ARXIV_SCHEDULE"),
     )
     arxiv_backfill_window_days: int = Field(default=90, ge=1, le=366)
-    arxiv_large_query_threshold: int = Field(default=1000, ge=10, le=30000)
+    arxiv_large_query_threshold: int = Field(
+        default=1000,
+        ge=10,
+        le=30000,
+        validation_alias=AliasChoices(
+            "ARXIV_LARGE_QUERY_THRESHOLD",
+            "SIGNAL_ARXIV_LARGE_QUERY_THRESHOLD",
+        ),
+    )
+    arxiv_min_query_partition_minutes: int = Field(
+        default=60,
+        ge=5,
+        le=1440,
+        validation_alias=AliasChoices(
+            "ARXIV_MIN_QUERY_PARTITION_MINUTES",
+            "SIGNAL_ARXIV_MIN_QUERY_PARTITION_MINUTES",
+        ),
+    )
     arxiv_max_runtime_minutes: int = Field(default=30, ge=1, le=1440)
     arxiv_retry_attempts: int = Field(default=3, ge=1, le=5)
     arxiv_user_agent: str = Field(

@@ -163,6 +163,12 @@ async def test_operations_and_coverage_endpoints_are_truthful(
     assert operations_payload["data_quality"]["scheduler_interrupted_last_24h"] == 1
     assert operations_payload["data_quality"]["scheduler_partial_last_24h"] == 1
     assert operations_payload["data_quality"]["scheduler_failed_last_24h"] == 1
+    assert operations_payload["data_quality"]["scheduler_late_last_24h"] == 0
+    assert operations_payload["scheduler"]["continuity_state"] == "pending"
+    assert operations_payload["scheduler"]["punctuality_state"] == "pending"
+    assert operations_payload["scheduler"]["qualification_completed"] == 0
+    assert operations_payload["scheduler"]["on_time_threshold_seconds"] == 300
+    assert operations_payload["scheduler"]["modified_records"] == 0
     assert "1 scheduler execution was missed" in operations_payload["explanation"]
     assert "1 scheduler execution was interrupted" in operations_payload["explanation"]
     assert "1 scheduler execution was partial" in operations_payload["explanation"]

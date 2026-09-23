@@ -317,6 +317,12 @@ describe("Operations", () => {
     expect(screen.getByText("Source Status")).toBeInTheDocument();
     expect(screen.getByText("Coverage Matrix")).toBeInTheDocument();
     expect(screen.getByText("Data Protection")).toBeInTheDocument();
+    expect(screen.getByText("Scheduler Status")).toBeInTheDocument();
+    expect(screen.getByText("Punctuality qualification")).toBeInTheDocument();
+    expect(
+      screen.getByText("0/3 post-deployment windows", { exact: false }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Late")).toBeInTheDocument();
     expect(screen.getByText("Latest verified backup")).toBeInTheDocument();
     expect(screen.getByText(/DB 12\.0 MB/)).toBeInTheDocument();
     expect(screen.getAllByText("Not collecting")).toHaveLength(2);
@@ -327,6 +333,7 @@ describe("Operations", () => {
     expect(screen.getByText("Interrupted schedules · 24h")).toBeInTheDocument();
     expect(screen.getByText("Partial schedules · 24h")).toBeInTheDocument();
     expect(screen.getByText("Failed schedules · 24h")).toBeInTheDocument();
+    expect(screen.getByText("Late dispatches · 24h")).toBeInTheDocument();
     expect(screen.getByText("Not verified")).toBeInTheDocument();
     expect(screen.queryByText(/coverage \d+%/i)).not.toBeInTheDocument();
   });

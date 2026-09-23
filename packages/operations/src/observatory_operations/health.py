@@ -44,6 +44,11 @@ from observatory_operations.models import (
     OverallState,
     freshness_state,
 )
+from observatory_operations.scheduler import (
+    SchedulerPunctualityVerifier,
+    SchedulerTimingState,
+    scheduler_timing,
+)
 from signal_observatory_config import Settings
 from topic_registry.queries import TopicQueryService
 
@@ -75,6 +80,14 @@ class OperationsService:
         sources = [self.source(name) for name in SOURCE_PRESENTATION]
         coverage_summary = CoverageQueryService(self.session, self.settings, now=self.now).summary()
         data_quality = self._data_quality()
+        scheduler = SchedulerPunctualityVerifier(
+            self.session,
+            now=self.now,
+        ).status(
+            job_name="arxiv_daily",
+            source_name="arxiv",
+            schedule=self.settings.arxiv_schedule,
+        )
         active = [source for source in sources if source["implemented"] and source["enabled"]]
         overall = self._overall_state(
             active,
@@ -86,6 +99,7 @@ class OperationsService:
                 + data_quality["scheduler_interrupted_last_24h"]
                 + data_quality["scheduler_partial_last_24h"]
                 + data_quality["scheduler_failed_last_24h"]
+                + data_quality["scheduler_late_last_24h"]
             ),
         )
         return {
@@ -95,6 +109,7 @@ class OperationsService:
             "sources": sources,
             "coverage_summary": coverage_summary,
             "data_quality": data_quality,
+            "scheduler": scheduler,
             "data_protection": BackupCatalog(self.settings.backup_path)
             .status(now=self.now)
             .model_dump(mode="json"),
@@ -430,6 +445,17 @@ class OperationsService:
                 SchedulerExecutionStatus.FAILED,
             )
         }
+        scheduler_rows = list(
+            self.session.scalars(
+                select(SchedulerExecution).where(
+                    SchedulerExecution.started_at >= since,
+                )
+            ).all()
+        )
+        scheduler_late = sum(
+            scheduler_timing(row, now=self.now)[0] is SchedulerTimingState.LATE
+            for row in scheduler_rows
+        )
         return {
             "ingestion_errors_last_24h": errors,
             "partial_mappings": partial_mappings,
@@ -444,6 +470,7 @@ class OperationsService:
             ],
             "scheduler_partial_last_24h": scheduler_counts[SchedulerExecutionStatus.PARTIAL],
             "scheduler_failed_last_24h": scheduler_counts[SchedulerExecutionStatus.FAILED],
+            "scheduler_late_last_24h": scheduler_late,
         }
 
     def _registry(self) -> dict[str, Any]:
@@ -507,7 +534,7 @@ class OperationsService:
             warning_count = data_quality["registry_warnings"]
             warning_label = "warning" if warning_count == 1 else "warnings"
             parts.append(f"Registry has {warning_count} {warning_label}")
-        for status in ("missed", "interrupted", "partial", "failed"):
+        for status in ("missed", "interrupted", "partial", "failed", "late"):
             count = data_quality[f"scheduler_{status}_last_24h"]
             if count:
                 execution_label = "execution" if count == 1 else "executions"

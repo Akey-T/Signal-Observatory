@@ -12,7 +12,7 @@ from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import Session
 from typer.testing import CliRunner
 
-from arxiv_collector import ArxivClient, ArxivCollectionService
+from arxiv_collector import ArxivClient, ArxivCollectionService, ArxivCursorAuditor
 from collector_core import LocalRawStore
 from observatory_db.arxiv_models import (
     ArxivCollectionCursor,
@@ -81,18 +81,20 @@ def configured(session: Session, *, second: bool = False) -> list[TopicSourceMap
     return mappings
 
 
-def settings(tmp_path: Path) -> Settings:
-    return Settings(
-        database_url="sqlite+pysqlite:///:memory:",
-        environment="test",
-        raw_data_path=tmp_path,
-        arxiv_page_size=1,
-        arxiv_max_requests_per_run=20,
-        arxiv_max_results_per_topic=100,
-        arxiv_large_query_threshold=100,
-        arxiv_incremental_overlap_hours=48,
-        arxiv_max_runtime_minutes=5,
-    )
+def settings(tmp_path: Path, **overrides: object) -> Settings:
+    values: dict[str, object] = {
+        "database_url": "sqlite+pysqlite:///:memory:",
+        "environment": "test",
+        "raw_data_path": tmp_path,
+        "arxiv_page_size": 1,
+        "arxiv_max_requests_per_run": 20,
+        "arxiv_max_results_per_topic": 100,
+        "arxiv_large_query_threshold": 100,
+        "arxiv_incremental_overlap_hours": 48,
+        "arxiv_max_runtime_minutes": 5,
+    }
+    values.update(overrides)
+    return Settings.model_validate(values)
 
 
 def client(fake_time: FakeTime, transport: object) -> ArxivClient:
@@ -311,6 +313,131 @@ def test_incremental_403_preserves_raw_and_stops_run(
         assert run.error_count == 1
 
 
+def test_large_incremental_query_checkpoints_children_and_resumes_without_reprobe(
+    migrated_engine: Engine, tmp_path: Path
+) -> None:
+    fake_time = FakeTime()
+    queries: list[str] = []
+
+    async def transport(
+        url: str, _headers: Mapping[str, str], _timeout: float
+    ) -> tuple[int, Mapping[str, str], bytes]:
+        query = request_values(url)["search_query"]
+        queries.append(query)
+        payload = (FIXTURES / "empty_result.xml").read_text(encoding="utf-8")
+        if "submittedDate:[202608080000 TO 202608100000]" in query:
+            payload = payload.replace(
+                "<opensearch:totalResults>0",
+                "<opensearch:totalResults>1001",
+            )
+        return 200, {}, payload.encode()
+
+    with Session(migrated_engine) as session:
+        configured(session)
+        run_settings = settings(
+            tmp_path,
+            arxiv_large_query_threshold=10,
+            arxiv_max_requests_per_run=2,
+            arxiv_min_query_partition_minutes=60,
+        )
+        service = ArxivCollectionService(
+            session,
+            run_settings,
+            client=client(fake_time, transport),
+            raw_store=LocalRawStore(tmp_path),
+            now=fake_time.wall,
+            monotonic=fake_time.monotonic,
+        )
+
+        first = asyncio.run(service.collect())
+        parent = session.scalar(
+            select(ArxivCollectionCursor).where(ArxivCollectionCursor.cursor_key == "incremental")
+        )
+        assert parent is not None
+        assert first.status == "partial"
+        assert parent.status is ArxivCursorStatus.PARTIAL
+        assert len(parent.checkpoint["partition"]["completed"]) == 1
+        assert len(parent.checkpoint["partition"]["pending"]) == 1
+        assert len(queries) == 2
+
+        resumed = asyncio.run(service.collect())
+        assert resumed.status == "succeeded"
+        assert parent.status is ArxivCursorStatus.SUCCEEDED
+        assert parent.last_query_until == datetime(2026, 8, 10, tzinfo=UTC)
+        assert parent.checkpoint["partition"]["status"] == "completed"
+        assert parent.checkpoint["partition"]["pending"] == []
+        assert len(queries) == 3
+        assert sum("202608080000 TO 202608100000" in query for query in queries) == 1
+        child_cursors = session.scalars(
+            select(ArxivCollectionCursor).where(ArxivCollectionCursor.mode == "incremental_part")
+        ).all()
+        assert [cursor.status for cursor in child_cursors] == [
+            ArxivCursorStatus.SUCCEEDED,
+            ArxivCursorStatus.SUCCEEDED,
+        ]
+        assert all(cursor.checkpoint["partition_root_from"] for cursor in child_cursors)
+        assert all(cursor.checkpoint["partition_root_until"] for cursor in child_cursors)
+
+
+def test_incremental_partition_failure_marks_child_and_parent_terminal(
+    migrated_engine: Engine, tmp_path: Path
+) -> None:
+    fake_time = FakeTime()
+
+    async def transport(
+        url: str, _headers: Mapping[str, str], _timeout: float
+    ) -> tuple[int, Mapping[str, str], bytes]:
+        query = request_values(url)["search_query"]
+        payload = (FIXTURES / "empty_result.xml").read_text(encoding="utf-8")
+        if "submittedDate:[202608080000 TO 202608100000]" in query:
+            payload = payload.replace(
+                "<opensearch:totalResults>0",
+                "<opensearch:totalResults>1001",
+            )
+        elif "submittedDate:[202608090000 TO 202608100000]" in query:
+            raise ConnectionError("partition transport failure")
+        return 200, {}, payload.encode()
+
+    with Session(migrated_engine) as session:
+        configured(session)
+        service = ArxivCollectionService(
+            session,
+            settings(tmp_path, arxiv_large_query_threshold=10),
+            client=client(fake_time, transport),
+            raw_store=LocalRawStore(tmp_path),
+            now=fake_time.wall,
+            monotonic=fake_time.monotonic,
+        )
+
+        summary = asyncio.run(service.collect())
+        parent = session.scalar(
+            select(ArxivCollectionCursor).where(ArxivCollectionCursor.cursor_key == "incremental")
+        )
+        child_statuses = session.scalars(
+            select(ArxivCollectionCursor.status)
+            .where(ArxivCollectionCursor.mode == "incremental_part")
+            .order_by(ArxivCollectionCursor.created_at)
+        ).all()
+        audit = ArxivCursorAuditor(
+            session,
+            settings(tmp_path, arxiv_large_query_threshold=10),
+        ).audit()
+
+    assert summary.status == "failed"
+    assert parent is not None
+    assert parent.status is ArxivCursorStatus.FAILED
+    assert child_statuses == [ArxivCursorStatus.SUCCEEDED, ArxivCursorStatus.FAILED]
+    assert parent.checkpoint["partition"]["pending"] == [
+        {
+            "window_from": "2026-08-09T00:00:00+00:00",
+            "window_until": "2026-08-10T00:00:00+00:00",
+        }
+    ]
+    assert audit["status"] == "passed"
+    assert audit["cursor_without_durable_run"] == 0
+    assert audit["cursor_without_raw_evidence"] == 0
+
+
 def test_status_and_sample_cli_read_persisted_lineage(
     migrated_engine: Engine,
     tmp_path: Path,
@@ -335,6 +462,7 @@ def test_status_and_sample_cli_read_persisted_lineage(
         asyncio.run(service.collect())
 
     monkeypatch.setenv("SIGNAL_DATABASE_URL", str(migrated_engine.url))
+    monkeypatch.setenv("SIGNAL_RAW_DATA_PATH", str(tmp_path))
     status_result = runner.invoke(app, ["arxiv", "status", "--json"])
     sample_result = runner.invoke(
         app,
@@ -348,12 +476,59 @@ def test_status_and_sample_cli_read_persisted_lineage(
             "--json",
         ],
     )
+    audit_result = runner.invoke(app, ["arxiv", "cursor-audit", "--json"])
+    verify_result = runner.invoke(app, ["arxiv", "verify-cursors", "--json"])
     assert status_result.exit_code == 0, status_result.stdout
     assert sample_result.exit_code == 0, sample_result.stdout
+    assert audit_result.exit_code == 0, audit_result.stdout
+    assert verify_result.exit_code == 0, verify_result.stdout
     status_payload = json.loads(status_result.stdout)
     sample_payload = json.loads(sample_result.stdout)
+    audit_payload = json.loads(audit_result.stdout)
     assert status_payload["collector_state"] == "healthy"
     assert status_payload["papers_observed"] == 1
     assert len(sample_payload["items"]) == 1
     assert sample_payload["items"][0]["matched_query"] == 'all:"model context protocol"'
     assert sample_payload["items"][0]["raw_checksum"]
+    assert audit_payload["status"] == "passed"
+    assert audit_payload["succeeded"] == 1
+    assert audit_payload["cursor_without_durable_run"] == 0
+    assert audit_payload["cursor_without_raw_evidence"] == 0
+
+
+def test_cursor_verifier_rejects_success_without_run_or_raw(
+    migrated_engine: Engine, tmp_path: Path
+) -> None:
+    observed_at = datetime(2026, 8, 10, tzinfo=UTC)
+    with Session(migrated_engine) as session:
+        mapping = configured(session)[0]
+        session.add(
+            ArxivCollectionCursor(
+                topic_id=mapping.topic_id,
+                source_mapping_id=mapping.id,
+                cursor_key="incremental",
+                mode="incremental",
+                last_successful_run_at=observed_at,
+                last_query_from=observed_at - timedelta(hours=48),
+                last_query_until=observed_at,
+                window_from=observed_at - timedelta(hours=48),
+                window_until=observed_at,
+                next_start=0,
+                checkpoint={"reason": None},
+                status=ArxivCursorStatus.SUCCEEDED,
+            )
+        )
+        session.commit()
+
+        report = ArxivCursorAuditor(session, settings(tmp_path)).audit()
+        cursor = session.scalar(select(ArxivCollectionCursor))
+        assert cursor is not None
+        cursor.status = ArxivCursorStatus.RUNNING
+        session.commit()
+        stale_running = ArxivCursorAuditor(session, settings(tmp_path)).audit()
+
+    assert report["status"] == "failed"
+    assert report["cursor_without_durable_run"] == 1
+    assert report["cursor_without_raw_evidence"] == 1
+    assert report["modified_records"] == 0
+    assert stale_running["unexplained_cursor_state"] == 1

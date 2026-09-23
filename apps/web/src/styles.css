@@ -2163,7 +2163,8 @@ select {
   line-height: 1.6;
 }
 
-.data-protection__grid {
+.data-protection__grid,
+.scheduler-status__grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
   margin: 0;
@@ -2171,14 +2172,16 @@ select {
   border-bottom: 1px solid var(--line);
 }
 
-.data-protection__grid > div {
+.data-protection__grid > div,
+.scheduler-status__grid > div {
   min-height: 160px;
   padding: 28px;
   border-top: 1px solid var(--line);
   border-left: 1px solid var(--line);
 }
 
-.data-protection__grid dt {
+.data-protection__grid dt,
+.scheduler-status__grid dt {
   margin-bottom: 18px;
   color: var(--dim);
   font-family: var(--mono);
@@ -2187,17 +2190,24 @@ select {
   text-transform: uppercase;
 }
 
-.data-protection__grid dd {
+.data-protection__grid dd,
+.scheduler-status__grid dd {
   margin: 0 0 12px;
   font-size: 1.25rem;
 }
 
-.data-protection__grid small {
+.data-protection__grid small,
+.scheduler-status__grid small {
   color: var(--dim);
   font-family: var(--mono);
   font-size: 0.68rem;
   line-height: 1.6;
   overflow-wrap: anywhere;
+}
+
+.scheduler-status__note {
+  color: var(--muted);
+  margin: 1rem 0 0;
 }
 
 .data-protection__empty {

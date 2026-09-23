@@ -266,6 +266,48 @@ export type SourceOperationalHealth = {
   details: Record<string, unknown>;
 };
 
+export type SchedulerExecutionEvidence = {
+  execution_id: string;
+  scheduled_at: string;
+  started_at: string | null;
+  finished_at: string | null;
+  dispatch_delay_seconds: number | null;
+  timing_state: "on_time" | "late" | "missed" | "interrupted" | "pending";
+  collector_status: string;
+  error_type: string | null;
+};
+
+export type SchedulerStatus = {
+  job_name: string;
+  source_name: string;
+  schedule: string;
+  on_time_threshold_seconds: number;
+  continuity_state: "passed" | "pending" | "failed";
+  continuity_days_required: number;
+  continuity_windows_observed: number;
+  continuity_missing: string[];
+  continuity_duplicates: number;
+  continuity_missed_or_interrupted: number;
+  punctuality_state: "passed" | "pending" | "failed";
+  qualification_contract: string;
+  qualification_start: string | null;
+  qualification_required: number;
+  qualification_completed: number;
+  qualification_on_time: number;
+  qualification_late: number;
+  qualification_missed: number;
+  qualification_interrupted: number;
+  qualification_missing: string[];
+  qualification_duplicates: number;
+  next_qualification_window: string | null;
+  latest_execution: SchedulerExecutionEvidence | null;
+  evidence: SchedulerExecutionEvidence[];
+  status: "passed" | "pending" | "failed";
+  exit_code: number;
+  message: string;
+  modified_records: 0;
+};
+
 export type OperationsOverview = {
   overall_state: "healthy" | "degraded" | "failed" | "not_started";
   explanation: string;
@@ -284,7 +326,9 @@ export type OperationsOverview = {
     scheduler_interrupted_last_24h: number;
     scheduler_partial_last_24h: number;
     scheduler_failed_last_24h: number;
+    scheduler_late_last_24h: number;
   };
+  scheduler: SchedulerStatus;
   data_protection: {
     latest_backup: BackupSummary | null;
     latest_verified_backup: BackupSummary | null;

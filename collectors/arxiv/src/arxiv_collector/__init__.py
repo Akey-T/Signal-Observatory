@@ -1,5 +1,6 @@
 """Official-API-only arXiv Research Collector."""
 
+from arxiv_collector.audit import ArxivCursorAuditor
 from arxiv_collector.client import (
     ArxivClient,
     ArxivClientError,
@@ -30,6 +31,7 @@ __all__ = [
     "ArxivAtomParser",
     "ArxivClient",
     "ArxivClientError",
+    "ArxivCursorAuditor",
     "ArxivCollectionError",
     "ArxivCollectionService",
     "ArxivForbiddenError",
