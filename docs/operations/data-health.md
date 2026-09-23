@@ -10,6 +10,8 @@ concepts separate:
 - **Freshness**: how long ago persisted source evidence was last observed.
 - **Coverage**: what historical interval exists and whether its declared target was completed.
 - **Registry health**: whether the curated Topic Registry is internally valid.
+- **Scheduler continuity**: whether every expected UTC window was durably claimed and terminated.
+- **Scheduler punctuality**: whether dispatch began within the explicit delay threshold.
 
 No composite health percentage is calculated.
 
@@ -79,9 +81,16 @@ every elapsed window after the last materialized plan is created and recorded as
 previously running plan is recorded as `interrupted`. Neither state triggers a hidden manual replay.
 Window claims are atomic and one PostgreSQL advisory leader owns scheduling. arXiv and GitHub have
 independent execution locks; GitHub snapshot and discovery remain serialized with each other
-because they share one source budget. Missed, interrupted, partial, and failed counts are exposed
+because they share one source budget. Missed, interrupted, late, partial, and failed counts are exposed
 separately in the Operations API and UI. Registry warnings and each scheduler anomaly both degrade
 the overall Operations state and are named in its explanation.
+
+`scheduled_at → started_at` is the only dispatch-delay calculation. `≤300` seconds is `on_time`;
+greater delay is `late`. Missing and interrupted windows retain their own states. Collector
+`succeeded`, `partial`, or `failed` is shown beside timing and cannot overwrite it. The E04.6
+qualification starts only at a future plan carrying `scheduler-punctuality-v1` and requires three
+real terminal windows. Manual ingestion runs have no scheduler row and cannot satisfy it. See
+[`scheduler-punctuality.md`](scheduler-punctuality.md).
 
 ## Backup scope
 

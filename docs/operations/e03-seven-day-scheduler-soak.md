@@ -1,6 +1,6 @@
 # E03 seven-day scheduler soak
 
-Status: **Original window failed; recovery window in progress — 2/7**
+Status: **Original window failed; recovery window passed — 7/7**
 
 Formal window: 2026-08-12 through 2026-08-18, scheduled daily at 02:00 UTC
 (12:00 Australia/Sydney). Review heartbeat: 12:20 Australia/Sydney.
@@ -177,11 +177,11 @@ table, Research API semantic, Topic Match, or Raw observation was modified by th
 | -----------: | ---------------- | ----------------------- | ---------------------- | ------------------- |
 |            1 | 2026-08-18 02:00 | `65a1ecda...` succeeded | 55 / 1961 / 0          | Qualified succeeded |
 |            2 | 2026-08-19 02:00 | `0c2004a8...` partial   | 103 / 1398 / 26        | Qualified partial   |
-|            3 | 2026-08-20 02:00 | Pending                 | Pending                | Pending             |
-|            4 | 2026-08-21 02:00 | Pending                 | Pending                | Pending             |
-|            5 | 2026-08-22 02:00 | Pending                 | Pending                | Pending             |
-|            6 | 2026-08-23 02:00 | Pending                 | Pending                | Pending             |
-|            7 | 2026-08-24 02:00 | Pending                 | Pending                | Pending             |
+|            3 | 2026-08-20 02:00 | `0264a6bc...` partial   | 81 / 1666 / 16         | Qualified partial   |
+|            4 | 2026-08-21 02:00 | `1548105a...` partial   | 48 / 1199 / 0          | Qualified partial   |
+|            5 | 2026-08-22 02:00 | `afcb355c...` partial   | 44 / 615 / 0           | Qualified partial   |
+|            6 | 2026-08-23 02:00 | `1114d533...` partial   | 42 / 130 / 0           | Qualified partial   |
+|            7 | 2026-08-24 02:00 | `fd78146c...` partial   | 42 / 207 / 0           | Qualified partial   |
 
 ### Recovery Day 1 — 2026-08-18
 
@@ -236,3 +236,219 @@ Checked at `2026-08-19T10:52:36Z`, after the `02:00 UTC` scheduled window.
 
 Recovery Day 2 is the second qualified execution in the new sequence. No arXiv table, Research API
 semantic, Topic Match, or Raw observation was modified by this review.
+
+### Recovery Day 3 — 2026-08-20
+
+Checked at `2026-08-20T12:22:03Z`, after the `02:00 UTC` scheduled window.
+
+- Docker `db`, `api`, `web`, and `worker` were all healthy. The Worker had remained up for
+  approximately 25 hours. Its retained log records run start at `02:00:00.137640Z`, completion at
+  `02:14:42.011070Z`, status `partial`, and the next arXiv plan at
+  `2026-08-21T02:00:00Z`.
+- The persisted `2026-08-20T02:00:00Z` scheduler window transitioned to `running` at
+  `02:00:00.010875Z` and finished `partial` at `02:14:42.011307Z` with
+  `error_type = collector_partial`. The approximately 11-millisecond start delay is consistent with
+  a live due-time claim. No manual collection or replacement run was used.
+- The corresponding incremental run is `0264a6bc-23ba-4e18-8426-2fad44e4cf1f`, tagged
+  `trigger = scheduled`. It made 81 persisted Raw requests, received 1,666 records, inserted 814
+  Papers, updated 9 records, skipped 843 existing records, and persisted 16 errors. Raw evidence
+  contains 38 HTTP 200 and 43 HTTP 429 responses. The error rows comprise 14 `ArxivHTTPError` and
+  2 `ArxivTransportError` records.
+- Compared with Recovery Day 2, Raw decreased from 103 to 81 while records received increased from
+  1,398 to 1,666. Inserted Papers decreased from 854 to 814, HTTP 200 responses increased from 25
+  to 38, HTTP 429 responses decreased from 78 to 43, and total errors decreased from 26 to 16.
+  Reliability improved relative to Day 2, but the persisted outcome remains partial and is not
+  relabeled as success.
+- Cumulative arXiv evidence is now 560 Raw responses and 139 persisted ingestion errors. Prior Raw
+  and errors remain immutable.
+
+Recovery Day 3 is the third qualified scheduler-continuity execution in the new sequence, while its
+data outcome remains partial. No arXiv table, Research API semantic, Topic Match, or Raw observation
+was modified by this review.
+
+### Recovery Day 4 — 2026-08-21
+
+Checked at `2026-08-21T12:20:45Z`, after the `02:00 UTC` scheduled window.
+
+- Docker `db`, `api`, `web`, and `worker` were all healthy. The Worker container had remained up for
+  approximately two days. Its retained log records run start at `06:55:09.644235Z`, completion at
+  `06:57:31.456042Z`, status `partial`, and the next arXiv plan at
+  `2026-08-22T02:00:00Z`.
+- The persisted `2026-08-21T02:00:00Z` scheduler window transitioned to `running` at
+  `06:55:09.579660Z`, approximately 4 hours 55 minutes 10 seconds late, and finished `partial` at
+  `06:57:31.456297Z` with `error_type = collector_partial`. The retained container uptime together
+  with the delayed arXiv and other scheduled work is consistent with the host not executing during
+  the due-time interval. The lateness is preserved; no manual collection or replacement run was
+  used.
+- The corresponding incremental run is `1548105a-f18e-48e2-a962-b8624d752cfa`, tagged
+  `trigger = scheduled`. It persisted 48 immutable Raw responses, received 1,199 records, inserted
+  374 Papers, updated 13 records, skipped 812 existing records, and persisted 0 ingestion errors.
+  All 48 Raw responses were HTTP 200; there were no HTTP 429 or ingestion-error rows.
+- Zero ingestion errors did not make the run complete. Persisted quality evidence records two stale
+  cursors and two failed mappings, and the checkpoints identify `large_incremental_query` partials
+  for Artificial Intelligence and Machine Learning. The collector and scheduler therefore
+  correctly retained `partial` rather than inventing success.
+- Compared with Recovery Day 3, Raw decreased from 81 to 48, records received decreased from 1,666
+  to 1,199, and inserted Papers decreased from 814 to 374. HTTP 200 responses increased from 38 to
+  48, HTTP 429 responses decreased from 43 to 0, and errors decreased from 16 to 0. The HTTP path
+  improved, while the two cursor/mapping gaps kept the data outcome partial.
+- Cumulative arXiv evidence is now 608 Raw responses and 139 persisted ingestion errors. The error
+  total did not increase, and all earlier evidence remains immutable.
+
+Recovery Day 4 is the fourth qualified scheduler-continuity execution in the new sequence, while
+its delayed start and partial data outcome remain explicit. GitHub activity was not used in this
+decision. No arXiv table, Research API semantic, Topic Match, or Raw observation was modified by
+this review.
+
+### Recovery Day 5 — 2026-08-22
+
+Checked at `2026-08-22T12:21:39Z`, after the `02:00 UTC` scheduled window.
+
+- Docker `db`, `api`, `web`, and `worker` were all healthy. The Worker container had remained up for
+  approximately three days. Its retained log records run start at `09:39:39.006771Z`, completion at
+  `09:42:02.942152Z`, status `partial`, and the next arXiv plan at
+  `2026-08-23T02:00:00Z`.
+- The persisted `2026-08-22T02:00:00Z` scheduler window transitioned to `running` at
+  `09:39:38.840753Z`, approximately 7 hours 39 minutes 39 seconds late, and finished `partial` at
+  `09:42:02.942309Z` with `error_type = collector_partial`. Retained container uptime and delayed
+  scheduled work remain consistent with the host not executing during the due-time interval. The
+  delay is not hidden, and no manual collection or replacement run was used.
+- The corresponding incremental run is `afcb355c-e6f2-49e9-80e9-8ff639d615d3`, tagged
+  `trigger = scheduled`. It persisted 44 immutable Raw responses, received 615 records, inserted 51
+  Papers, updated 0 records, skipped 564 existing records, and persisted 0 ingestion errors. All 44
+  Raw responses were HTTP 200; there were no HTTP 429 or ingestion-error rows.
+- Persisted quality evidence again records two stale cursors and two failed mappings. The
+  non-succeeded checkpoints identify the same `large_incremental_query` partials for Artificial
+  Intelligence and Machine Learning. The zero-error HTTP result therefore remains distinct from
+  complete data coverage, and both collector and scheduler correctly retained `partial`.
+- Compared with Recovery Day 4, Raw decreased from 48 to 44, records received decreased from 1,199
+  to 615, inserted Papers decreased from 374 to 51, and updated records decreased from 13 to 0.
+  HTTP 200 responses decreased from 48 to 44, while HTTP 429 responses and persisted errors both
+  remained at 0. The network path stayed clean, but the two cursor/mapping gaps remained.
+- Cumulative arXiv evidence is now 652 Raw responses and 139 persisted ingestion errors. The error
+  total again did not increase, and all earlier evidence remains immutable.
+
+Recovery Day 5 is the fifth qualified scheduler-continuity execution in the new sequence, while
+its delayed start and partial data outcome remain explicit. GitHub activity was not used in this
+decision. No arXiv table, Research API semantic, Topic Match, or Raw observation was modified by
+this review.
+
+### Recovery Day 6 — 2026-08-23
+
+Checked at `2026-08-23T12:21:42Z`, after the `02:00 UTC` scheduled window.
+
+- Docker `db`, `api`, `web`, and `worker` were all healthy. The Worker container had remained up for
+  approximately four days. Its retained log records run start at `06:07:38.810852Z`, completion at
+  `06:09:43.197732Z`, status `partial`, and the next arXiv plan at
+  `2026-08-24T02:00:00Z`.
+- The persisted `2026-08-23T02:00:00Z` scheduler window transitioned to `running` at
+  `06:07:38.785772Z`, approximately 4 hours 7 minutes 39 seconds late, and finished `partial` at
+  `06:09:43.198169Z` with `error_type = collector_partial`. Retained container uptime and delayed
+  scheduled work remain consistent with the host not executing during the due-time interval. The
+  delay remains visible, and no manual collection or replacement run was used.
+- The corresponding incremental run is `1114d533-da6f-44b2-a8fe-8ba48a1ed038`, tagged
+  `trigger = scheduled`. It persisted 42 immutable Raw responses, received 130 records, inserted 0
+  Papers, updated 0 records, skipped 130 existing records, and persisted 0 ingestion errors. All 42
+  Raw responses were HTTP 200; there were no HTTP 429 or ingestion-error rows. Zero insertions are
+  retained as a legitimate observed outcome rather than treated as missing collection.
+- Persisted quality evidence continues to record two stale cursors and two failed mappings. The
+  only non-succeeded checkpoints remain the `large_incremental_query` partials for Artificial
+  Intelligence and Machine Learning. Clean HTTP execution and zero new Papers therefore do not
+  imply complete data coverage, and both collector and scheduler correctly retained `partial`.
+- Compared with Recovery Day 5, Raw decreased from 44 to 42, records received decreased from 615 to
+  130, inserted Papers decreased from 51 to 0, and skipped records decreased from 564 to 130.
+  Updated records, HTTP 429 responses, and persisted errors all remained at 0; HTTP 200 responses
+  decreased from 44 to 42. The network path stayed clean, while the two cursor/mapping gaps
+  remained.
+- Cumulative arXiv evidence is now 694 Raw responses and 139 persisted ingestion errors. The error
+  total again did not increase, and all earlier evidence remains immutable.
+
+Recovery Day 6 is the sixth qualified scheduler-continuity execution in the new sequence, while
+its delayed start and partial data outcome remain explicit. GitHub activity was not used in this
+decision. No arXiv table, Research API semantic, Topic Match, or Raw observation was modified by
+this review.
+
+### Recovery Day 7 — 2026-08-24
+
+Checked at `2026-08-24T12:22:01Z`, after the `02:00 UTC` scheduled window.
+
+- Docker `db`, `api`, `web`, and `worker` were all healthy. The Worker container had remained up for
+  approximately five days. Its retained log records the arXiv run start at
+  `08:08:25.887789Z`, completion at `08:10:30.303335Z`, status `partial`, and the next arXiv plan at
+  `2026-08-25T02:00:00Z`.
+- The persisted `2026-08-24T02:00:00Z` scheduler window transitioned to `running` at
+  `08:08:25.816291Z`, approximately 6 hours 8 minutes 26 seconds late, and finished `partial` at
+  `08:10:30.303741Z` with `error_type = collector_partial`. Retained container uptime and delayed
+  scheduled work remain consistent with the host not executing during the due-time interval. The
+  delay remains visible, and no manual collection or replacement run was used.
+- The corresponding incremental run is `fd78146c-c46e-42e6-83c7-230d77484925`, tagged
+  `trigger = scheduled`. It persisted 42 immutable Raw responses, received 207 records, inserted
+  164 Papers, updated 0 records, skipped 43 existing records, and persisted 0 ingestion errors. All
+  42 Raw responses were HTTP 200, with 407 parsed entries and no parse errors; there were no HTTP
+  429 or ingestion-error rows.
+- Persisted quality evidence records two stale cursors and two failed mappings. The only
+  non-succeeded incremental cursors remain the `large_incremental_query` partials for Artificial
+  Intelligence and Machine Learning; the other 40 incremental cursors are `succeeded`. The
+  separate Registry-coverage warning for 59 enabled Topics without an arXiv mapping also remains
+  visible. Clean HTTP execution therefore does not imply complete source coverage.
+- Compared with Recovery Day 6, Raw and HTTP 200 counts remained at 42, while records received
+  increased from 130 to 207 and inserted Papers increased from 0 to 164. Skipped records decreased
+  from 130 to 43; updated records, HTTP 429 responses, and persisted errors all remained at 0. The
+  network path stayed clean, while the two cursor/mapping gaps remained.
+- Cumulative arXiv evidence is now 736 Raw responses and 139 persisted ingestion errors. The error
+  total again did not increase, and all earlier evidence remains immutable.
+
+Recovery Day 7 is the seventh qualified scheduler-continuity execution in the new sequence, while
+its delayed start and partial data outcome remain explicit. GitHub activity was not used in this
+decision. No arXiv table, Research API semantic, Topic Match, or Raw observation was modified by
+this review.
+
+## Final recovery conclusion — 2026-08-24
+
+The recovery scheduler-continuity gate **passed** for the real `2026-08-18T02:00:00Z` through
+`2026-08-24T02:00:00Z` windows:
+
+- PostgreSQL contains exactly seven consecutive scheduler windows and exactly one completed arXiv
+  incremental ingestion run tagged `trigger = scheduled` for each UTC date.
+- The seven persisted outcomes are one `succeeded` and six `partial`, with zero missing, duplicate,
+  failed, or unfinished executions and no manual-run substitution.
+- Each run has persisted Raw evidence and a terminal Worker outcome. Collector failures and quality
+  gaps remain visible rather than being relabeled as scheduler success.
+
+This pass is deliberately limited to scheduler continuity. It does **not** establish 02:00 UTC
+punctuality: six recovery executions started late, including Day 7 by approximately 6 hours 8
+minutes. It also does **not** establish complete arXiv coverage: six runs were partial, and the
+Artificial Intelligence and Machine Learning `large_incremental_query` cursor gaps still require
+separate operational remediation. The original `2026-08-12` through `2026-08-18` window remains
+failed and is not repaired or superseded by this recovery result.
+
+## E04.6 punctuality qualification — deployed 2026-08-25 UTC
+
+E04.6 adds a separate, persisted-evidence punctuality contract without changing either soak
+conclusion above. The original E03 window remains **failed**, and the recovery continuity window
+remains **passed 7/7** with one succeeded and six partial collector outcomes. Six of those seven
+recovery executions started more than five minutes late, so they are historical continuity
+evidence, not post-deployment punctuality evidence.
+
+The updated Worker became healthy at `2026-08-25T14:18:05.959095Z`. Its first complete
+post-deployment contract window is therefore `2026-08-26T02:00:00Z`. Qualification requires three
+consecutive real `arxiv_daily` scheduler windows, each starting no more than 300 seconds after its
+persisted scheduled time, with no missing, duplicate, interrupted, or manual-substitution window.
+At deployment the read-only verifier reported:
+
+| Evidence                          | Result                 |
+| --------------------------------- | ---------------------- |
+| Recovery continuity               | `PASSED`, 7/7          |
+| Punctuality qualification         | `PENDING`, 0/3         |
+| Qualification threshold           | 300 seconds            |
+| First / next qualification window | `2026-08-26T02:00:00Z` |
+| On-time / late / missed           | 0 / 0 / 0              |
+| Duplicate / interrupted           | 0 / 0                  |
+| Records modified by verification  | 0                      |
+
+The manual targeted arXiv validation runs `21237850-843c-4607-8158-cc463aee8bcc` and
+`335f9ab1-7f46-4d97-b169-30c88ea2123d` are ingestion evidence only. They cannot satisfy, repair,
+or replace a scheduler window. The project did not change the Windows power plan; host wake and
+availability remain an operator/deployment responsibility. Future qualification evidence must be
+appended from the actual scheduled windows and must remain `PENDING` or become `FAILED` unless all
+three persisted windows genuinely meet the contract.

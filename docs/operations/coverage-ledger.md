@@ -64,3 +64,10 @@ collection; dry runs do not. APIs query the projection and do not launch derivat
 The `/operations` Coverage Matrix supports Topic search and Source/Status filtering. Topic Detail
 shows a compact per-channel summary and links to Operations. Neither surface displays an invented
 completeness percentage.
+
+## Attention Domain contract
+
+E05 extends the shared `CoverageStrategy` vocabulary with `forward_only`, `bounded_historical`, and
+`historical_plus_forward` values for future Attention source adapters. E05 does not derive or create
+GDELT, Wikipedia, Search, or Community coverage rows; a future collector must provide declared UTC
+windows, observed intervals, missing intervals, and partial state to this same rebuildable ledger.

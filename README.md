@@ -1,7 +1,16 @@
 # Signal Observatory
 
-E04.5B adds verified full recovery units for PostgreSQL, immutable Raw, Registry configuration,
-and provenance. Operator commands are documented in
+E04.6 hardens durable scheduling and arXiv incremental recovery. Scheduler continuity, dispatch
+punctuality, and collector outcomes are now separate persisted facts; broad arXiv incremental
+queries recursively partition into resumable child windows. Operator guidance is in
+[`docs/operations/scheduler-punctuality.md`](docs/operations/scheduler-punctuality.md).
+
+E05 Attention Domain Foundation is implemented and accepted as a source-neutral domain boundary.
+It persists Attention Documents, measured Observations, and Evidence links while keeping Event and
+Entity canonicalization contract-only. No Public Attention source is live yet; E06 GDELT remains
+implementation-not-started until its bounded probe and collector acceptance.
+
+E04.5B recovery-unit commands remain documented in
 [`docs/operations/backup-restore.md`](docs/operations/backup-restore.md). A typical local cycle is:
 
 ```powershell
@@ -17,7 +26,10 @@ the only disaster-recovery copy.
 
 Signal Observatory 是一个长期运行的数据工程与趋势研究项目。它保存公开机器接口中的技术生态观测，构建可追溯、可重复计算的历史序列，用于研究技术从 Research → Developer Adoption → Community Attention → Public Attention 的传播过程。
 
-当前仓库完成 **E00 Project Foundation**、**E01 Data Infrastructure**、**E02 Topic Registry**、**E02.5 Topic Observatory Experience**、**E03 arXiv Research Collector** 与 **E04.5 Data Health & Coverage Ledger**。**E04 GitHub Developer Collector 已完成基线实现，但仍等待第二个真实 UTC 日期的快照验收**；E03 的七天调度 soak 也仍在进行。Trend Score、AI 摘要、自动 topic discovery 和业务趋势 Dashboard 仍不在当前范围内。
+当前仓库已完成并验收 **E00–E05**，并完成 E04.5B recovery-unit 验收。E04 GitHub 跨日验收已经通过；E03 调度恢复窗口已于
+`2026-08-18` 至 `2026-08-24` 连续 7 天通过，但该结论只证明连续性。E04.6 的实现门禁已经完成，
+其 `≤300s` 准时性资格最近 3 个真实计划窗口为 `FAILED 0/3`（均迟到），当前不得标记为通过。Trend Score、
+AI 摘要、自动 Topic discovery 和业务趋势 Dashboard 仍不在当前范围内。
 
 ## 已实现
 
@@ -40,6 +52,9 @@ Signal Observatory 是一个长期运行的数据工程与趋势研究项目。�
 - Topic × Source Coverage Ledger，确定性区分 Complete、Partial、Forward only、Empty 与 Unknown
 - 统一的 Collector Health、Freshness、Data Quality 与 Observatory overall state
 - 只读 Raw integrity、GitHub 跨日和 arXiv 七天调度验收工具
+- 调度连续性与准时性分离、`ON_TIME/LATE/MISSED/INTERRUPTED` 时间证据和 3 窗口资格门禁
+- arXiv 大增量查询递归时间分区、父/子 checkpoint 恢复和只读 cursor lineage 验证
+- Attention Domain Foundation：Source/Channel、Document、Observation、Evidence 合同与最小持久化
 - `/operations` 工程运营页面、Coverage Matrix 与 Topic Detail 覆盖摘要
 
 ## 快速启动
@@ -107,9 +122,13 @@ signal-observatory arxiv status --json
 signal-observatory arxiv backfill --topic model-context-protocol --from 2026-07-01 --until 2026-08-10 --dry-run
 signal-observatory arxiv collect --topic model-context-protocol --json
 signal-observatory arxiv sample --topic model-context-protocol --limit 20 --json
+signal-observatory arxiv cursor-audit --json
+signal-observatory arxiv verify-cursors --json
 ```
 
-backfill 与 incremental 都有 per-mapping checkpoint；只有 Raw 与 Silver 成功持久化后 cursor 才会前进。详细策略见 [arXiv source 文档](docs/sources/arxiv.md)，实测数据见 [Pilot 报告](docs/data/arxiv-pilot-report.md)。
+backfill 与 incremental 都有 per-mapping checkpoint；大结果集会递归拆分为有独立 cursor 的子窗口，
+只有 Raw 与 Silver 成功持久化后父 cursor 才会前进。详细策略见
+[arXiv source 文档](docs/sources/arxiv.md)，实测数据见 [Pilot 报告](docs/data/arxiv-pilot-report.md)。
 
 ## GitHub Developer Collector
 
@@ -130,7 +149,8 @@ signal-observatory github snapshot --topic model-context-protocol --json
 ```
 
 Discovery 默认每周执行、Snapshot 默认每天执行；两者使用独立 Search/Core budget。详细策略见
-[GitHub source 文档](docs/sources/github.md)。E04 认证 Pilot、至少 30 个 Repository 人工复核和第二个真实日快照完成前，仓库不会宣称 Developer 通道验收完成。
+[GitHub source 文档](docs/sources/github.md)。E04 认证 Pilot、人工复核和真实跨日 Snapshot 验收均已完成；
+GitHub 历史仍诚实地从首次观测日起保持 `FORWARD_ONLY`。
 
 ## Operations 与 Coverage Ledger
 
@@ -147,11 +167,14 @@ signal-observatory ops check --json
 signal-observatory ops verify-raw --sample 100 --json
 signal-observatory github verify-cross-day --json
 signal-observatory arxiv verify-soak --days 7 --json
+signal-observatory scheduler status --json
+signal-observatory scheduler verify-punctuality --json
 ```
 
 `ops check` 退出码：`0` healthy/acceptable，`1` degraded，`2` failed/action required，`3`
-configuration/database failure。`github verify-cross-day` 和 `arxiv verify-soak` 是只读验收工具；时间窗口
-不足时返回 `PENDING`，不会触发采集或修改数据。
+configuration/database failure。`github verify-cross-day`、`arxiv verify-soak` 和
+`scheduler verify-punctuality` 都是只读验收工具；时间窗口不足时返回 `PENDING`，不会触发采集或
+修改数据。手工采集不能满足 scheduler 资格，collector 的 `partial/failed` 也不会改变已记录的启动延迟。
 
 只读 API：
 
@@ -189,4 +212,5 @@ Silver → Aggregation → Gold → Analytics → API → UI
 
 Topic Registry 只定义观测对象及各来源的显式查询映射。它不执行网络请求，不从关键词自动创建 canonical Topic，也不会删除数据库中的历史 Topic。YAML 中移除的数据库实体会作为 orphan warning 保留；明确退役必须将 status 改为 `deprecated`。
 
-详细设计见 [架构总览](docs/architecture/overview.md) 与 [ADR](docs/adr/)。E04 完整验收后的下一推荐 Epic 仅为 **E05 Hacker News Community Collector**。
+详细设计见 [架构总览](docs/architecture/overview.md) 与 [ADR](docs/adr/)。下一步规划必须同时考虑
+E04.6 三个真实准时窗口的未决资格和独立的产品 Epic；未决资格不得用手工运行提前关闭。

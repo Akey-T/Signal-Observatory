@@ -41,7 +41,8 @@ download PDFs, TeX source, images, or full text.
 Configuration is centralized through `ARXIV_API_BASE_URL`,
 `ARXIV_MIN_REQUEST_INTERVAL_SECONDS`, `ARXIV_REQUEST_TIMEOUT_SECONDS`, `ARXIV_PAGE_SIZE`,
 `ARXIV_MAX_REQUESTS_PER_RUN`, `ARXIV_MAX_RESULTS_PER_TOPIC`,
-`ARXIV_INCREMENTAL_OVERLAP_HOURS`, and `ARXIV_SCHEDULE`. The User-Agent identifies Signal
+`ARXIV_INCREMENTAL_OVERLAP_HOURS`, `ARXIV_LARGE_QUERY_THRESHOLD`,
+`ARXIV_MIN_QUERY_PARTITION_MINUTES`, and `ARXIV_SCHEDULE`. The User-Agent identifies Signal
 Observatory and its collector version; it does not imitate a browser.
 
 ## Topic mapping and match semantics
@@ -104,16 +105,33 @@ Cursor advancement occurs only after Raw and Silver persistence commit successfu
 mapping keeps its safe checkpoint and does not prevent independent mappings from completing. The
 minimal worker scheduler runs once daily by default; the manual CLI remains available.
 
+When an incremental query exceeds `ARXIV_LARGE_QUERY_THRESHOLD`, the collector recursively splits
+the submitted-date interval until each child is below the threshold or reaches the configured
+minimum duration. Each child has a deterministic `incremental_part` cursor. The parent checkpoint
+records root bounds plus ordered pending/completed child windows. A later run resumes only pending
+children; a child committed immediately before interruption is recognized as succeeded and is not
+queried again. Request, result, page, runtime, minimum pacing, and minimum-partition limits remain
+active. Reaching a limit produces a visible `partial` cursor and never advances the parent past
+unpersisted work.
+
 ## Read surfaces
 
 - `signal-observatory arxiv status [--json]`
 - `signal-observatory arxiv sample --topic SLUG --limit 20 [--json]`
+- `signal-observatory arxiv cursor-audit [--json]`
+- `signal-observatory arxiv verify-cursors [--json]`
 - `GET /api/sources/arxiv/status`
 - `GET /api/topics/{slug}/research`
 
 The Topic Research endpoint reads Silver tables only. Counts are observation summaries, not trend
 metrics. Publication windows are based on `published_at` in UTC. `unique_authors_30d` counts unique
 normalized display names and must not be interpreted as resolved human identities.
+
+`cursor-audit` reports parent/child state, mappings without an incremental cursor, active Topics
+without an arXiv mapping, and partial reasons. `verify-cursors` additionally fails when a succeeded
+cursor lacks a terminal ingestion run, intact immutable Raw evidence, or has unexplained state.
+Both commands are read-only; coverage gaps can remain visible without being mistaken for lineage
+corruption.
 
 ## Data quality and known limitations
 

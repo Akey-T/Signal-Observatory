@@ -86,6 +86,21 @@ These rules apply to the entire repository.
 80. Disaster-recovery drills must use isolated PostgreSQL and Raw targets.
 81. A backup on the same physical disk is not the sole acceptable disaster-recovery copy.
 82. E03 soak and E04 cross-day evidence must remain independent from backup acceptance evidence.
+83. Media Attention must never be labeled Public Concern.
+84. Attention Source and Attention Channel are different concepts.
+85. Topic, Event, Entity, Document, and Observation are distinct domain objects.
+86. A Document is evidence; it is not itself an attention measurement.
+87. Evidence count must never substitute for a measured observation value.
+88. Zero-valued observations and missing observations are different.
+89. Source collectors must not automatically create canonical Events.
+90. Source collectors must not automatically create canonical Entities.
+91. Source collectors must not automatically create canonical Topics.
+92. Event detection must remain separate from canonical Event governance.
+93. Entity extraction must remain separate from canonical Entity governance.
+94. Attention metrics must declare their unit and definition version.
+95. Attention observations must preserve source, channel, UTC window, and provenance.
+96. No Public Attention Score or Public Concern Score may be introduced in E05.
+97. No Trend Score may be introduced in E05.
 
 ## Repository boundaries
 

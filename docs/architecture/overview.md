@@ -19,7 +19,7 @@ flowchart LR
     API --> UI["React UI"]
 ```
 
-E00-E02 implement the platform through Silver, add the curated Topic Registry, and define the Gold boundary. E02.5 adds a read-only Topic Observatory Experience. E03 adds selective arXiv Research observations. E04 adds explicit GitHub Repository discovery and forward-only Developer snapshots. Aggregations and trend algorithms remain deliberately absent.
+E00-E02 implement the platform through Silver, add the curated Topic Registry, and define the Gold boundary. E02.5 adds a read-only Topic Observatory Experience. E03 adds selective arXiv Research observations. E04 adds explicit GitHub Repository discovery and forward-only Developer snapshots. E04.5/E04.5B add deterministic coverage and a verified recovery unit. E04.6 separates scheduler punctuality from collection outcomes and adds resumable incremental query partitioning. E05 defines the source-neutral Attention Domain and minimally persists Documents, Observations, and Evidence links; GDELT and other Public Attention collectors remain separate future Epics. Aggregations and trend algorithms remain deliberately absent.
 
 ## arXiv Research observation flow
 
@@ -80,6 +80,24 @@ queries. Source mappings remain source-specific YAML objects; the relational pro
 their generic envelope and JSON configuration without teaching the core Topic model how a source
 constructs requests.
 
+## Attention Domain foundation
+
+```mermaid
+flowchart LR
+    Topic["Curated Topic Registry"] --> Mapping["Explicit Source Mapping"]
+    Mapping --> Observation["Attention Observation\nUTC window + metric + unit"]
+    Document["Source-local Attention Document"] --> Evidence["Observation Evidence"]
+    Evidence --> Observation
+    Observation --> Lineage["Ingestion Run → source Raw"]
+```
+
+E05 keeps Source (`gdelt`, `wikipedia`, or another provider) separate from Attention Channel
+(`MEDIA`, `SEARCH`, `COMMUNITY`, `REFERENCE`). `AttentionDocument` is evidence, while
+`AttentionObservation` is the measured fact; ArticleList/evidence counts can never replace a
+measurement. Canonical Entity and Event contracts are curated/contract-only and are not created by
+collectors or observed text. Future adapters reuse the existing CoverageDeriver and RawStore
+contracts.
+
 ## Runtime components
 
 | Component     | Responsibility                                                    | Persistent writes        |
@@ -90,7 +108,7 @@ constructs requests.
 | Web           | Read-only Registry, explorer, Research and Developer observations | None                     |
 | LocalRawStore | Atomic Bronze publication and verification                        | `data/raw/`              |
 
-Docker Compose orders startup as PostgreSQL healthy → API migrated/healthy → Worker and Web. The API validates its configuration, retries database startup connectivity, and disposes its engine during graceful shutdown. The worker exposes health through a readiness file that exists only while its database-validated event loop and validated UTC schedules are running. Any scheduler coroutine failure terminates the worker and removes readiness. It polls wall time to tolerate host sleep, persists each expected window before it is due, and materializes every elapsed daily or weekly window after a long shutdown before reconciling it as `missed`; an abandoned running plan becomes `interrupted`. PostgreSQL advisory leadership permits one scheduler host, while atomic status transitions protect each window. Jobs for the same source share a lock; independent sources do not block one another. Manual collection, discovery, snapshots, status, and sampling remain available through the CLI.
+Docker Compose orders startup as PostgreSQL healthy → API migrated/healthy → Worker and Web. The API validates its configuration, retries database startup connectivity, and disposes its engine during graceful shutdown. The worker exposes health through a readiness file that exists only while its database-validated event loop and validated UTC schedules are running. Any scheduler coroutine failure terminates the worker and removes readiness. It polls wall time to tolerate host sleep, persists each expected window before it is due, and materializes every elapsed daily or weekly window after a long shutdown before reconciling it as `missed`; an abandoned running plan becomes `interrupted`. PostgreSQL advisory leadership permits one scheduler host, while atomic status transitions protect each window. Jobs for the same source share a lock; independent sources do not block one another. Scheduler continuity, dispatch timing, and collector outcome are three separate read models. A versioned contract marker is applied only to future plans, so historical late windows and manual runs cannot satisfy the three-window punctuality gate. Manual collection, discovery, snapshots, status, and sampling remain available through the CLI.
 
 The Web UI consumes only read-only Topic, Research, and Developer APIs. Featured topics are selected deterministically from active topics using editorial monitoring priority and top-level category diversity; observation counts do not affect that rule. Configured source mappings are displayed separately from observation state. Research becomes live only from a successful per-mapping cursor; Developer becomes live only from a successful GitHub snapshot; degraded history remains visible. Hacker News and Wikipedia stay not collecting.
 
@@ -127,6 +145,8 @@ The filesystem implementation is intentionally local. A future object-store impl
 - Paper/Topic is many-to-many and every match records its Registry mapping and exact query.
 - Author order and arXiv categories are relational; author display names are not resolved identities.
 - Per-mapping cursors advance only after durable Raw and Silver persistence.
+- Large arXiv incremental windows recursively split into deterministic child cursors. The parent
+  stores pending/completed child bounds and advances only when every child has durable evidence.
 - GitHub Repository external identity is numeric; `full_name` is mutable display metadata.
 - Repository/Topic is many-to-many and every match records mapping, query, rank, run, and Raw.
 - Repository snapshots are immutable, unique per Repository/UTC date, and begin at first observation.
