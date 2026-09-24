@@ -6,6 +6,7 @@ import urllib.parse
 from collections.abc import Mapping
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import Engine, func, select
@@ -20,7 +21,14 @@ from observatory_db.arxiv_models import (
     ArxivPaper,
     ArxivRawResponse,
 )
-from observatory_db.models import IngestionError, IngestionRun, Source, Topic, TopicSourceMapping
+from observatory_db.models import (
+    IngestionError,
+    IngestionRun,
+    IngestionStatus,
+    Source,
+    Topic,
+    TopicSourceMapping,
+)
 from signal_observatory_cli.main import app
 from signal_observatory_config import Settings
 
@@ -436,6 +444,192 @@ def test_incremental_partition_failure_marks_child_and_parent_terminal(
     assert audit["status"] == "passed"
     assert audit["cursor_without_durable_run"] == 0
     assert audit["cursor_without_raw_evidence"] == 0
+
+
+def _partitioned_audit_state(
+    session: Session, tmp_path: Path
+) -> tuple[TopicSourceMapping, ArxivCollectionCursor, ArxivCollectionCursor, ArxivRawResponse]:
+    fake_time = FakeTime()
+
+    async def transport(
+        url: str, _headers: Mapping[str, str], _timeout: float
+    ) -> tuple[int, Mapping[str, str], bytes]:
+        payload = (FIXTURES / "empty_result.xml").read_text(encoding="utf-8")
+        if "submittedDate:[202608080000 TO 202608100000]" in request_values(url)["search_query"]:
+            payload = payload.replace("<opensearch:totalResults>0", "<opensearch:totalResults>1001")
+        return 200, {}, payload.encode()
+
+    mapping = configured(session)[0]
+    service = ArxivCollectionService(
+        session,
+        settings(
+            tmp_path,
+            arxiv_large_query_threshold=10,
+            arxiv_max_requests_per_run=2,
+            arxiv_min_query_partition_minutes=60,
+        ),
+        client=client(fake_time, transport),
+        raw_store=LocalRawStore(tmp_path),
+        now=fake_time.wall,
+        monotonic=fake_time.monotonic,
+    )
+    assert asyncio.run(service.collect()).status == "partial"
+    assert asyncio.run(service.collect()).status == "succeeded"
+    parent = session.scalar(
+        select(ArxivCollectionCursor).where(ArxivCollectionCursor.cursor_key == "incremental")
+    )
+    child = session.scalar(
+        select(ArxivCollectionCursor)
+        .where(ArxivCollectionCursor.mode == "incremental_part")
+        .order_by(ArxivCollectionCursor.cursor_key)
+    )
+    root_raw = next(
+        raw
+        for raw in session.scalars(select(ArxivRawResponse)).all()
+        if raw.request_metadata.get("mode") == "incremental"
+    )
+    assert parent is not None
+    assert child is not None
+    return mapping, parent, child, root_raw
+
+
+def test_cursor_audit_accepts_current_and_evidenced_historical_partition_without_writes(
+    migrated_engine: Engine, tmp_path: Path
+) -> None:
+    with Session(migrated_engine) as session:
+        _, parent, _, _ = _partitioned_audit_state(session, tmp_path)
+        auditor = ArxivCursorAuditor(session, settings(tmp_path))
+        assert auditor.audit()["status"] == "passed"
+        for child in session.scalars(
+            select(ArxivCollectionCursor).where(ArxivCollectionCursor.mode == "incremental_part")
+        ):
+            child.checkpoint = {
+                key: value
+                for key, value in child.checkpoint.items()
+                if key not in {"partition_root_from", "partition_root_until"}
+            }
+        parent.checkpoint = {
+            key: value for key, value in parent.checkpoint.items() if key != "partition"
+        }
+        session.commit()
+        before = (
+            scalar_count(session, ArxivCollectionCursor),
+            scalar_count(session, ArxivRawResponse),
+        )
+        historical = auditor.audit()
+        after = (
+            scalar_count(session, ArxivCollectionCursor),
+            scalar_count(session, ArxivRawResponse),
+        )
+
+    assert historical["status"] == "passed"
+    assert historical["modified_records"] == 0
+    assert before == after
+
+
+@pytest.mark.parametrize(
+    ("case", "expected_anomaly"),
+    [
+        ("missing_root_raw", "unexplained_cursor_state"),
+        ("unrelated_prior_probe", "unexplained_cursor_state"),
+        ("conflicting_root_raw", "unexplained_cursor_state"),
+        ("cross_mapping", "unexplained_cursor_state"),
+        ("child_outside_root", "unexplained_cursor_state"),
+        ("root_window_mismatch", "unexplained_cursor_state"),
+        ("child_raw_window_mismatch", "cursor_without_raw_evidence"),
+        ("missing_durable_run", "cursor_without_durable_run"),
+        ("malformed_parent_partition", "unexplained_cursor_state"),
+        ("half_explicit_root", "unexplained_cursor_state"),
+    ],
+)
+def test_cursor_audit_rejects_unproven_partition_lineage(
+    migrated_engine: Engine, tmp_path: Path, case: str, expected_anomaly: str
+) -> None:
+    with Session(migrated_engine) as session:
+        mapping, parent, child, root_raw = _partitioned_audit_state(session, tmp_path)
+        child.checkpoint = {
+            key: value
+            for key, value in child.checkpoint.items()
+            if key not in {"partition_root_from", "partition_root_until"}
+        }
+        parent.checkpoint = {
+            key: value for key, value in parent.checkpoint.items() if key != "partition"
+        }
+        if case == "missing_root_raw":
+            session.delete(root_raw)
+        elif case == "unrelated_prior_probe":
+            unrelated_run = IngestionRun(
+                source_id=mapping.source_id,
+                started_at=root_raw.observed_at,
+                finished_at=root_raw.observed_at,
+                status=IngestionStatus.SUCCEEDED,
+                collector_version="test",
+            )
+            session.add(unrelated_run)
+            session.flush()
+            root_raw.ingestion_run_id = unrelated_run.run_id
+        elif case == "conflicting_root_raw":
+            store = LocalRawStore(tmp_path)
+            observed_at = root_raw.observed_at + timedelta(microseconds=1)
+            duplicate = store.write(
+                source="arxiv",
+                payload=b"conflicting root proof",
+                request_timestamp=observed_at,
+                collector_version="test",
+                schema_version="test",
+            )
+            session.add(
+                ArxivRawResponse(
+                    ingestion_run_id=root_raw.ingestion_run_id,
+                    topic_id=root_raw.topic_id,
+                    source_mapping_id=root_raw.source_mapping_id,
+                    raw_path=store.logical_key(duplicate.directory, source="arxiv"),
+                    payload_checksum=duplicate.sha256,
+                    observed_at=observed_at,
+                    query="different query for the same root window",
+                    start_index=0,
+                    max_results=1,
+                    sort_by="submittedDate",
+                    sort_order="ascending",
+                    http_status=200,
+                    request_metadata=dict(root_raw.request_metadata),
+                )
+            )
+        elif case == "cross_mapping":
+            source = session.get(Source, mapping.source_id)
+            assert source is not None
+            other = add_mapping(session, source, slug="other-topic", term="other topic")
+            child.source_mapping_id = other.id
+        elif case == "child_outside_root":
+            assert child.window_until is not None
+            child.window_until += timedelta(days=10)
+        elif case == "root_window_mismatch":
+            root_raw.request_metadata = {
+                **root_raw.request_metadata,
+                "window_until": "2026-08-11T00:00:00+00:00",
+            }
+        elif case == "child_raw_window_mismatch":
+            for raw in session.scalars(select(ArxivRawResponse)).all():
+                if raw.request_metadata.get("mode") == "incremental_part":
+                    raw.request_metadata = {
+                        **raw.request_metadata,
+                        "window_until": "2026-08-11T00:00:00+00:00",
+                    }
+        elif case == "missing_durable_run":
+            child.checkpoint = {**child.checkpoint, "last_successful_run_id": str(uuid4())}
+        elif case == "malformed_parent_partition":
+            parent.checkpoint = {**parent.checkpoint, "partition": {"root_from": "invalid"}}
+        elif case == "half_explicit_root":
+            child.checkpoint = {
+                **child.checkpoint,
+                "partition_root_from": root_raw.request_metadata["window_from"],
+            }
+        session.commit()
+        report = ArxivCursorAuditor(session, settings(tmp_path)).audit()
+
+    assert report["status"] == "failed"
+    assert report[expected_anomaly] >= 1
+    assert report["modified_records"] == 0
 
 
 def test_status_and_sample_cli_read_persisted_lineage(
