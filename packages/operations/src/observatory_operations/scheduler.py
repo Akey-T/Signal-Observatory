@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from observatory_db.models import SchedulerExecution, SchedulerExecutionStatus
 
-PUNCTUALITY_CONTRACT = "scheduler-punctuality-v1"
+PUNCTUALITY_CONTRACT = "scheduler-punctuality-v2"
 DEFAULT_ON_TIME_THRESHOLD_SECONDS = 300
 
 
@@ -440,6 +440,11 @@ class SchedulerPunctualityVerifier:
         if qualification_start is None:
             today_due = _latest_due_window(schedule, self.now)
             next_window = today_due + timedelta(days=1)
+            while any(
+                row.metadata_.get("punctuality_contract") != PUNCTUALITY_CONTRACT
+                for row in by_window.get(next_window, [])
+            ):
+                next_window += timedelta(days=1)
         elif len(due_qualification) < qualification_windows:
             next_window = qualification_expected[len(due_qualification)]
 

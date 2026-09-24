@@ -400,7 +400,7 @@ export const operationsOverview: OperationsOverview = {
     continuity_duplicates: 0,
     continuity_missed_or_interrupted: 0,
     punctuality_state: "pending",
-    qualification_contract: "scheduler-punctuality-v1",
+    qualification_contract: "scheduler-punctuality-v2",
     qualification_start: "2026-08-12T02:00:00Z",
     qualification_required: 3,
     qualification_completed: 0,

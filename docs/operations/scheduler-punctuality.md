@@ -25,7 +25,7 @@ Collector outcome is displayed independently as `succeeded`, `partial`, or `fail
 partial collection is on time but still partial. A late successful collection is late. No state
 is promoted or hidden.
 
-## Post-deployment qualification
+## Historical v1 post-deployment qualification
 
 E04.6 requires three real terminal windows under `scheduler-punctuality-v1`. The Worker writes this
 marker only to a future scheduled plan after the hardened build is deployed. Historical evidence
@@ -38,6 +38,24 @@ is retained but cannot qualify the new implementation. The gate is:
 
 Manual `arxiv collect` runs create ingestion evidence but no `scheduler_executions` row, so they
 cannot satisfy or repair this gate. A restart never backfills a missed qualification as success.
+
+The v1 qualification failed and remains historical evidence. It must not be reclassified as a v2
+success or repaired by manual collection.
+
+## Current v2 qualification
+
+The deployed Worker now marks newly planned `arxiv_daily` windows with
+`scheduler-punctuality-v2`. The verifier isolates v2-tagged scheduled windows and does not retag
+or count earlier v1 rows. The previously persisted 2026-09-25 02:00 UTC future plan is still v1;
+the first eligible v2 due window is 2026-09-26 02:00 UTC if the Worker plans it. Deployment on
+2026-09-24 yielded `PENDING`, 0/3; it did not prove a successful scheduler run.
+
+The v2 punctuality gate requires three consecutive real v2 scheduled dispatches no more than 300
+seconds late. The separate rolling continuity gate requires seven consecutive real natural daily
+windows with no missing, duplicate, missed, or interrupted row. Do not infer either result from
+container health alone. A manual run cannot satisfy either gate, and the collector outcome is
+reported separately from timing. Evidence for the initial deployment and host policy is in
+`docs/operations/scheduler-v2-readiness-2026-09-24.md`.
 
 ## Read-only operator commands
 
@@ -55,7 +73,10 @@ window. This is operational evidence, not a popularity, coverage percentage, or 
 
 ## Host availability
 
-The project does not change the Windows power plan. Docker Desktop, its Linux VM, the computer,
-and the Worker must be running at due time for an on-time result. If host sleep prevents execution,
-the persisted delay or missed state is the correct result; operators may change their own host
-policy outside the application after reviewing security and energy implications.
+The application does not change the Windows power plan at runtime. On 2026-09-24 the owner approved
+an operator-level AC-only setting change: automatic host sleep is disabled while plugged in, but
+the display still turns off after 60 minutes of inactivity. Battery sleep remains 30 minutes.
+Docker Desktop, its Linux VM, the computer, and the Worker still must be running at due time for
+an on-time result. Reboot recovery, lid-close behavior, power loss, and Docker startup are not
+proven by the AC sleep setting. If host unavailability prevents execution, the persisted delay or
+missed state is the correct result.

@@ -3,6 +3,7 @@ from __future__ import annotations
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime, timedelta
 from threading import Barrier
+from unittest.mock import Mock
 
 import pytest
 from sqlalchemy import select
@@ -292,6 +293,165 @@ def test_contract_planning_does_not_rewrite_historical_late_execution(tmp_path) 
         assert row.status is SchedulerExecutionStatus.PARTIAL
         assert row.metadata_ == {"historical": True}
     engine.dispose()
+
+
+def test_v2_planning_does_not_retag_an_existing_v1_future_window(tmp_path) -> None:
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'scheduler.db'}")
+    Base.metadata.create_all(engine)
+    ledger = SchedulerLedger(engine)
+    planned = datetime(2026, 9, 25, 2, tzinfo=UTC)
+    assert ledger.plan(
+        "arxiv_daily",
+        "arxiv",
+        planned,
+        metadata={"punctuality_contract": "scheduler-punctuality-v1"},
+    )
+    assert not ledger.plan(
+        "arxiv_daily",
+        "arxiv",
+        planned,
+        metadata={"punctuality_contract": PUNCTUALITY_CONTRACT},
+    )
+    assert ledger.plan(
+        "arxiv_daily",
+        "arxiv",
+        planned + timedelta(days=1),
+        metadata={"punctuality_contract": PUNCTUALITY_CONTRACT},
+    )
+    with Session(engine) as session:
+        rows = session.scalars(
+            select(SchedulerExecution).order_by(SchedulerExecution.scheduled_at)
+        ).all()
+        assert [row.metadata_["punctuality_contract"] for row in rows] == [
+            "scheduler-punctuality-v1",
+            "scheduler-punctuality-v2",
+        ]
+    engine.dispose()
+
+
+def test_v2_status_skips_an_already_planned_v1_future_window(tmp_path) -> None:
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'scheduler.db'}")
+    Base.metadata.create_all(engine)
+    planned = datetime(2026, 9, 25, 2, tzinfo=UTC)
+    assert SchedulerLedger(engine).plan(
+        "arxiv_daily",
+        "arxiv",
+        planned,
+        metadata={"punctuality_contract": "scheduler-punctuality-v1"},
+    )
+    with Session(engine) as session:
+        report = SchedulerPunctualityVerifier(session, now=planned - timedelta(hours=1)).status(
+            job_name="arxiv_daily", source_name="arxiv", schedule="0 2 * * *"
+        )
+
+    assert report["punctuality_state"] == "pending"
+    assert report["qualification_completed"] == 0
+    assert report["next_qualification_window"] == planned + timedelta(days=1)
+    assert report["modified_records"] == 0
+    engine.dispose()
+
+
+def test_v2_qualification_ignores_failed_v1_windows_without_rewriting_them(tmp_path) -> None:
+    engine = create_database_engine(f"sqlite+pysqlite:///{tmp_path / 'scheduler.db'}")
+    Base.metadata.create_all(engine)
+    first_v2 = datetime(2026, 9, 26, 2, tzinfo=UTC)
+    with Session(engine) as session:
+        for index in range(3):
+            old = first_v2 - timedelta(days=3 - index)
+            fresh = first_v2 + timedelta(days=index)
+            session.add_all(
+                [
+                    SchedulerExecution(
+                        job_name="arxiv_daily",
+                        source_name="arxiv",
+                        scheduled_at=old,
+                        started_at=old + timedelta(hours=2),
+                        finished_at=old + timedelta(hours=3),
+                        status=SchedulerExecutionStatus.SUCCEEDED,
+                        metadata_={"punctuality_contract": "scheduler-punctuality-v1"},
+                    ),
+                    SchedulerExecution(
+                        job_name="arxiv_daily",
+                        source_name="arxiv",
+                        scheduled_at=fresh,
+                        started_at=fresh + timedelta(seconds=300),
+                        finished_at=fresh + timedelta(minutes=10),
+                        status=SchedulerExecutionStatus.PARTIAL,
+                        metadata_={"punctuality_contract": PUNCTUALITY_CONTRACT},
+                    ),
+                ]
+            )
+        session.commit()
+        report = SchedulerPunctualityVerifier(
+            session, now=first_v2 + timedelta(days=2, hours=1)
+        ).status(job_name="arxiv_daily", source_name="arxiv", schedule="0 2 * * *")
+        old_rows = session.scalars(
+            select(SchedulerExecution).where(SchedulerExecution.scheduled_at < first_v2)
+        ).all()
+
+    assert report["qualification_contract"] == "scheduler-punctuality-v2"
+    assert report["punctuality_state"] == "passed"
+    assert report["qualification_on_time"] == 3
+    assert report["qualification_late"] == 0
+    assert len(report["evidence"]) == 3
+    assert report["modified_records"] == 0
+    assert all(
+        row.metadata_["punctuality_contract"] == "scheduler-punctuality-v1" for row in old_rows
+    )
+    engine.dispose()
+
+
+@pytest.mark.parametrize(
+    ("terminal_status", "expected_field"),
+    [
+        (SchedulerExecutionStatus.MISSED, "qualification_missed"),
+        (SchedulerExecutionStatus.INTERRUPTED, "qualification_interrupted"),
+    ],
+)
+def test_v2_qualification_rejects_missed_or_interrupted_window(
+    terminal_status: SchedulerExecutionStatus, expected_field: str
+) -> None:
+    scheduled = datetime(2026, 9, 26, 2, tzinfo=UTC)
+    row = SchedulerExecution(
+        job_name="arxiv_daily",
+        source_name="arxiv",
+        scheduled_at=scheduled,
+        started_at=(scheduled if terminal_status is SchedulerExecutionStatus.INTERRUPTED else None),
+        finished_at=scheduled + timedelta(minutes=1),
+        status=terminal_status,
+        metadata_={"punctuality_contract": PUNCTUALITY_CONTRACT},
+    )
+    session = Mock(spec=Session)
+    session.scalars.return_value.all.return_value = [row]
+    report = SchedulerPunctualityVerifier(session, now=scheduled + timedelta(minutes=2)).status(
+        job_name="arxiv_daily", source_name="arxiv", schedule="0 2 * * *"
+    )
+
+    assert report["punctuality_state"] == "failed"
+    assert report[expected_field] == 1
+    assert report["modified_records"] == 0
+
+
+def test_v2_qualification_rejects_duplicate_window() -> None:
+    scheduled = datetime(2026, 9, 26, 2, tzinfo=UTC)
+    row = SchedulerExecution(
+        job_name="arxiv_daily",
+        source_name="arxiv",
+        scheduled_at=scheduled,
+        started_at=scheduled + timedelta(seconds=1),
+        finished_at=scheduled + timedelta(minutes=1),
+        status=SchedulerExecutionStatus.SUCCEEDED,
+        metadata_={"punctuality_contract": PUNCTUALITY_CONTRACT},
+    )
+    session = Mock(spec=Session)
+    session.scalars.return_value.all.return_value = [row, row]
+    report = SchedulerPunctualityVerifier(session, now=scheduled + timedelta(minutes=2)).status(
+        job_name="arxiv_daily", source_name="arxiv", schedule="0 2 * * *"
+    )
+
+    assert report["punctuality_state"] == "failed"
+    assert report["qualification_duplicates"] == 1
+    assert report["modified_records"] == 0
 
 
 def test_punctuality_verifier_requires_three_tagged_real_windows(tmp_path) -> None:
